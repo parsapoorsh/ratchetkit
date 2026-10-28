@@ -93,11 +93,13 @@ def main() -> None:
         )
 
         # --- 5. one more round-trip: each reply is a DH ratchet ---
+        # Optional per-message AD is appended to the handshake identity AD.
         plain = b"thanks"
-        message = session.encrypt(plain)
+        ad = b"msg-id:thanks"
+        message = session.encrypt(plain, associated_data=ad)
         link.send(message.to_bytes())
         print(
-            f"[alice] -> {plain!r}  "
+            f"[alice] -> {plain!r}  ad={ad!r}  "
             f"{describe_message(message)}  "
             f"({describe_session(session)})"
         )

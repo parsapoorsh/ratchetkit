@@ -104,11 +104,12 @@ def main() -> None:
             f"({describe_session(session)})"
         )
 
-        # --- 4. one more round-trip ---
+        # --- 4. one more round-trip (Alice bound this message with AD) ---
         message = Message.from_bytes(link.expect(Message.CONSTRUCTOR_ID))
-        plain = session.decrypt(message)
+        ad = b"msg-id:thanks"
+        plain = session.decrypt(message, associated_data=ad)
         print(
-            f"[bob]   <- {plain!r}  "
+            f"[bob]   <- {plain!r}  ad={ad!r}  "
             f"{describe_message(message)}  "
             f"({describe_session(session)})"
         )
