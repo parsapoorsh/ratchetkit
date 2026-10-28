@@ -33,7 +33,7 @@ jobs:
       - name: Check version matches tag
         run: |
           tag="${GITHUB_REF_NAME#v}"
-          pkg="$(python -c 'import tomllib; print(tomllib.load(open("pyproject.toml","rb"))["project"]["version"]')"
+          pkg="$(python -c 'import tomllib; print(tomllib.load(open("pyproject.toml", "rb"))["project"]["version"])')"
           init="$(python -c 'from ratchetkit import __version__; print(__version__)')"
           echo "tag=$tag pyproject=$pkg __init__=$init"
           test "$tag" = "$pkg"
