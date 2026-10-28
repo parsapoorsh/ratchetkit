@@ -25,10 +25,6 @@ Requires Python 3.10+ and `cryptography>=45` (ML-KEM / ML-DSA).
 pip install -e ".[dev]"
 ```
 
-That installs `ratchetkit` into the active environment so `import ratchetkit`
-works without `PYTHONPATH` or `sys.path` hacks. The `example/` demo is not
-part of the wheel; run it from the repo root as `python -m example...`.
-
 ## Quick start (classical Double Ratchet)
 
 ```python
