@@ -9,7 +9,17 @@ Includes native PQXDH (classical DH + signed PQ prekey) for Triple suites.
 Triple Ratchet follows Signal Double Ratchet rev 4 §5-§6 and the hybrid design
 in [ePrint 2025/078](https://eprint.iacr.org/2025/078).
 
+Licensed under **AGPL-3.0-only** (same family as libsignal).
+
 ## Install
+
+```bash
+pip install ratchetkit
+```
+
+Requires Python 3.10+ and `cryptography>=45` (ML-KEM / ML-DSA).
+
+### Development
 
 ```bash
 pip install -e ".[dev]"

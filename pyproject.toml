@@ -4,7 +4,31 @@ version = "1.1.0"
 description = "X3DH/PQXDH key agreement and Double/Triple Ratchet with pluggable crypto primitives"
 readme = "README.md"
 requires-python = ">=3.10"
-license = "MIT"
+license = "AGPL-3.0-only"
+authors = [
+    { name = "Parsa Poorshikhian", email = "parsa.poorsh@gmail.com" },
+]
+keywords = [
+    "x3dh",
+    "pqxdh",
+    "double-ratchet",
+    "triple-ratchet",
+    "signal",
+    "e2ee",
+    "cryptography",
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: GNU Affero General Public License v3",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Security :: Cryptography",
+    "Typing :: Typed",
+]
 dependencies = [
     # ML-KEM / ML-DSA need cryptography >= 45 (OpenSSL 3.5 bindings).
     "cryptography>=45.0.0",
@@ -16,7 +40,9 @@ dev = [
 ]
 
 [project.urls]
+Homepage = "https://github.com/parsapoorsh/ratchetkit"
 Repository = "https://github.com/parsapoorsh/ratchetkit"
+Issues = "https://github.com/parsapoorsh/ratchetkit/issues"
 
 [build-system]
 requires = ["hatchling"]
