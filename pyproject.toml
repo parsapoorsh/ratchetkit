@@ -1,6 +1,6 @@
 [project]
 name = "ratchetkit"
-version = "1.1.0"
+version = "1.2.0"
 description = "X3DH/PQXDH key agreement and Double/Triple Ratchet with pluggable crypto primitives"
 readme = "README.md"
 requires-python = ">=3.10"
