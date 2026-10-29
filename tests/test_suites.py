@@ -11,9 +11,11 @@ from ratchetkit.suite import (
     CipherAlg,
     CryptoSuite,
     CryptoSuiteDoubleRatchet,
+    CryptoSuiteTripleRatchet,
     HashAlg,
     KeyExchangeAlg,
 )
+from tests.helpers import msg_counter
 
 
 SUITES = [
@@ -48,20 +50,54 @@ SUITES = [
         cipher=CipherAlg.CHACHA20,
         key_exchange=KeyExchangeAlg.MLKEM1024,
     ),
+    # Triple Ratchet hybrids
+    CryptoSuiteTripleRatchet(
+        digest=HashAlg.SHA256,
+        cipher=CipherAlg.AES256,
+        key_exchange=KeyExchangeAlg.X25519,
+        pq_key_exchange=KeyExchangeAlg.MLKEM768,
+        scka_chunks=2,
+    ),
+    CryptoSuiteTripleRatchet(
+        digest=HashAlg.SHA3_256,
+        cipher=CipherAlg.CHACHA20,
+        key_exchange=KeyExchangeAlg.X25519,
+        pq_key_exchange=KeyExchangeAlg.MLKEM1024,
+        scka_chunks=2,
+    ),
 ]
 
 
-@pytest.mark.parametrize("suite", SUITES, ids=lambda s: repr(s))
-def test_suite_roundtrip(suite: CryptoSuite):
+def _open_suite(suite: CryptoSuite, plain: bytes = b"suite-hi"):
     alice = IdentityKeyPair.generate(suite)
     bob = IdentityKeyPair.generate(suite)
     spk = SignedPreKey.generate(1, bob)
     opk = OneTimePreKey.generate(1, suite)
-    bundle = suite.create_bundle(bob, spk, opk)
-    alice_sess, initial = Session.initiate(alice, bundle)
-    first = alice_sess.encrypt(b"suite-hi")
-    bob_sess, plain = Session.accept(bob, spk, initial, first, opk)
-    assert plain == b"suite-hi"
+    if isinstance(suite, CryptoSuiteTripleRatchet):
+        pq = suite.generate_pq_prekey(1, bob)
+        bundle = suite.create_bundle(bob, spk, opk, pq)
+        alice_sess, initial = Session.initiate(alice, bundle)
+        first = alice_sess.encrypt(plain)
+        bob_sess, got = Session.accept(
+            bob,
+            spk,
+            initial,
+            first,
+            opk,
+            our_pq_prekey=pq,
+        )
+    else:
+        bundle = suite.create_bundle(bob, spk, opk)
+        alice_sess, initial = Session.initiate(alice, bundle)
+        first = alice_sess.encrypt(plain)
+        bob_sess, got = Session.accept(bob, spk, initial, first, opk)
+    assert got == plain
+    return alice_sess, bob_sess, first
+
+
+@pytest.mark.parametrize("suite", SUITES, ids=lambda s: repr(s))
+def test_suite_roundtrip(suite: CryptoSuite):
+    alice_sess, bob_sess, first = _open_suite(suite)
     reply = bob_sess.encrypt(b"suite-ack")
     assert alice_sess.decrypt(reply) == b"suite-ack"
     assert len(first.mac) == suite.tag_size
@@ -74,6 +110,14 @@ def test_default_tag_size():
         key_exchange=KeyExchangeAlg.X25519,
     )
     assert suite.tag_size == DEFAULT_TAG_SIZE
+    triple = CryptoSuiteTripleRatchet(
+        digest=HashAlg.SHA256,
+        cipher=CipherAlg.AES256,
+        key_exchange=KeyExchangeAlg.X25519,
+        pq_key_exchange=KeyExchangeAlg.MLKEM768,
+        scka_chunks=2,
+    )
+    assert triple.tag_size == DEFAULT_TAG_SIZE
 
 
 def test_tag_size_bounds():
@@ -91,25 +135,39 @@ def test_tag_size_bounds():
             key_exchange=KeyExchangeAlg.X25519,
             tag_size=33,
         )
+    with pytest.raises(ValueError, match="tag_size"):
+        CryptoSuiteTripleRatchet(
+            digest=HashAlg.SHA256,
+            cipher=CipherAlg.AES256,
+            key_exchange=KeyExchangeAlg.X25519,
+            pq_key_exchange=KeyExchangeAlg.MLKEM768,
+            scka_chunks=2,
+            tag_size=MIN_TAG_SIZE - 1,
+        )
 
 
 def test_tag_size_roundtrip_and_wire():
-    suite = CryptoSuiteDoubleRatchet(
-        digest=HashAlg.SHA256,
-        cipher=CipherAlg.AES256,
-        key_exchange=KeyExchangeAlg.X25519,
-        tag_size=MIN_TAG_SIZE,
-    )
-    restored = CryptoSuiteDoubleRatchet.from_bytes(suite.to_bytes())
-    assert restored.tag_size == MIN_TAG_SIZE
-
-    alice = IdentityKeyPair.generate(suite)
-    bob = IdentityKeyPair.generate(suite)
-    spk = SignedPreKey.generate(1, bob)
-    opk = OneTimePreKey.generate(1, suite)
-    bundle = suite.create_bundle(bob, spk, opk)
-    alice_sess, initial = Session.initiate(alice, bundle)
-    first = alice_sess.encrypt(b"tag-hi")
-    assert len(first.mac) == MIN_TAG_SIZE
-    bob_sess, plain = Session.accept(bob, spk, initial, first, opk)
-    assert plain == b"tag-hi"
+    for kind_suite in (
+        CryptoSuiteDoubleRatchet(
+            digest=HashAlg.SHA256,
+            cipher=CipherAlg.AES256,
+            key_exchange=KeyExchangeAlg.X25519,
+            tag_size=MIN_TAG_SIZE,
+        ),
+        CryptoSuiteTripleRatchet(
+            digest=HashAlg.SHA256,
+            cipher=CipherAlg.AES256,
+            key_exchange=KeyExchangeAlg.X25519,
+            pq_key_exchange=KeyExchangeAlg.MLKEM768,
+            scka_chunks=2,
+            tag_size=MIN_TAG_SIZE,
+        ),
+    ):
+        if isinstance(kind_suite, CryptoSuiteTripleRatchet):
+            restored = CryptoSuiteTripleRatchet.from_bytes(kind_suite.to_bytes())
+        else:
+            restored = CryptoSuiteDoubleRatchet.from_bytes(kind_suite.to_bytes())
+        assert restored.tag_size == MIN_TAG_SIZE
+        alice_sess, bob_sess, first = _open_suite(kind_suite, plain=b"tag-hi")
+        assert len(first.mac) == MIN_TAG_SIZE
+        assert msg_counter(first) == 0
