@@ -12,6 +12,7 @@ from ratchetkit.keys.identity import IdentityKeyPair
 from ratchetkit.keys.prekey import OneTimePreKey, SignedPreKey
 from ratchetkit.session import Session
 from ratchetkit.suite import (
+    SigningAlg,
     CipherAlg,
     CryptoSuiteDoubleRatchet,
     CryptoSuiteTripleRatchet,
@@ -25,6 +26,7 @@ def triple_suite():
         digest=HashAlg.SHA256,
         cipher=CipherAlg.AES256,
         key_exchange=KeyExchangeAlg.X25519,
+        signing=SigningAlg.ED25519,
         pq_key_exchange=KeyExchangeAlg.MLKEM768,
         scka_chunks=2,
     )
@@ -35,6 +37,7 @@ def test_suite_create_bundle_double():
         digest=HashAlg.SHA256,
         cipher=CipherAlg.AES256,
         key_exchange=KeyExchangeAlg.X25519,
+        signing=SigningAlg.ED25519,
     )
     bob = IdentityKeyPair.generate(suite)
     spk = SignedPreKey.generate(1, bob)

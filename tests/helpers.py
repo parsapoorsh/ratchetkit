@@ -3,7 +3,6 @@
 Triple/PQ-only modules (test_triple, test_pqxdh, test_spqr, test_scka, kem)
 keep their own setup. Everything else should open sessions through here.
 """
-
 from __future__ import annotations
 
 import pytest
@@ -20,6 +19,7 @@ from ratchetkit.ratchet.protocol.double import DoubleRatchet
 from ratchetkit.ratchet.protocol.triple import TripleRatchet
 from ratchetkit.session import Session
 from ratchetkit.suite import (
+    SigningAlg,
     CipherAlg,
     CryptoSuite,
     CryptoSuiteDoubleRatchet,
@@ -36,6 +36,20 @@ def make_suite(kind: str = "double", **kwargs) -> CryptoSuite:
     digest = kwargs.pop("digest", HashAlg.SHA256)
     cipher = kwargs.pop("cipher", CipherAlg.AES256)
     key_exchange = kwargs.pop("key_exchange", KeyExchangeAlg.X25519)
+    signing = kwargs.pop("signing", None)
+    if signing is None:
+        signing = {
+            KeyExchangeAlg.X25519: SigningAlg.ED25519,
+            KeyExchangeAlg.X448: SigningAlg.ED448,
+            KeyExchangeAlg.SECP256R1: SigningAlg.ECDSA_SECP256R1,
+            KeyExchangeAlg.SECP384R1: SigningAlg.ECDSA_SECP384R1,
+            KeyExchangeAlg.SECP521R1: SigningAlg.ECDSA_SECP521R1,
+            KeyExchangeAlg.RSA2048: SigningAlg.RSA_PSS_2048,
+            KeyExchangeAlg.RSA3072: SigningAlg.RSA_PSS_3072,
+            KeyExchangeAlg.RSA4096: SigningAlg.RSA_PSS_4096,
+            KeyExchangeAlg.MLKEM768: SigningAlg.MLDSA65,
+            KeyExchangeAlg.MLKEM1024: SigningAlg.MLDSA87,
+        }.get(key_exchange, SigningAlg.ED25519)
     if kind == "double":
         kwargs.pop("pq_key_exchange", None)
         kwargs.pop("scka_chunks", None)
@@ -43,6 +57,7 @@ def make_suite(kind: str = "double", **kwargs) -> CryptoSuite:
             digest=digest,
             cipher=cipher,
             key_exchange=key_exchange,
+            signing=signing,
             **kwargs,
         )
     if kind == "triple":
@@ -52,6 +67,7 @@ def make_suite(kind: str = "double", **kwargs) -> CryptoSuite:
             digest=digest,
             cipher=cipher,
             key_exchange=key_exchange,
+            signing=signing,
             pq_key_exchange=pq_key_exchange,
             scka_chunks=scka_chunks,
             **kwargs,

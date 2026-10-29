@@ -8,6 +8,7 @@ from ratchetkit.keys.prekey import OneTimePreKey, SignedPreKey
 from ratchetkit.ratchet import TripleRatchet, TripleRatchetMessage
 from ratchetkit.session import Session
 from ratchetkit.suite import (
+    SigningAlg,
     CipherAlg,
     CryptoSuiteTripleRatchet,
     HashAlg,
@@ -20,6 +21,7 @@ def triple_suite(n_chunks=2):
         digest=HashAlg.SHA256,
         cipher=CipherAlg.AES256,
         key_exchange=KeyExchangeAlg.X25519,
+        signing=SigningAlg.ED25519,
         pq_key_exchange=KeyExchangeAlg.MLKEM768,
         scka_chunks=n_chunks,
     )
@@ -92,6 +94,7 @@ def test_triple_with_mlkem1024():
         digest=HashAlg.SHA3_256,
         cipher=CipherAlg.CHACHA20,
         key_exchange=KeyExchangeAlg.X25519,
+        signing=SigningAlg.ED25519,
         pq_key_exchange=KeyExchangeAlg.MLKEM1024,
         scka_chunks=2,
     )

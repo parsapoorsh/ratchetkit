@@ -6,6 +6,7 @@ from ratchetkit.keys.identity import IdentityKeyPair
 from ratchetkit.keys.prekey import OneTimePreKey, SignedPreKey
 from ratchetkit.session import Session
 from ratchetkit.suite import (
+    SigningAlg,
     DEFAULT_TAG_SIZE,
     MIN_TAG_SIZE,
     CipherAlg,
@@ -23,43 +24,51 @@ SUITES = [
         digest=HashAlg.SHA256,
         cipher=CipherAlg.AES256,
         key_exchange=KeyExchangeAlg.X25519,
+        signing=SigningAlg.ED25519,
     ),
     CryptoSuiteDoubleRatchet(
         digest=HashAlg.SHA512,
         cipher=CipherAlg.AES256,
         key_exchange=KeyExchangeAlg.X448,
+        signing=SigningAlg.ED448,
     ),
     CryptoSuiteDoubleRatchet(
         digest=HashAlg.SHA256,
         cipher=CipherAlg.CHACHA20,
         key_exchange=KeyExchangeAlg.X25519,
+        signing=SigningAlg.ED25519,
     ),
     CryptoSuiteDoubleRatchet(
         digest=HashAlg.SHA256,
         cipher=CipherAlg.AES256,
         key_exchange=KeyExchangeAlg.SECP256R1,
+        signing=SigningAlg.ECDSA_SECP256R1,
     ),
     CryptoSuiteDoubleRatchet(
         digest=HashAlg.SHA256,
         cipher=CipherAlg.AES256,
         key_exchange=KeyExchangeAlg.RSA3072,
+        signing=SigningAlg.RSA_PSS_3072,
     ),
     # Post-quantum identity path: ML-KEM agreement + ML-DSA (still Double Ratchet)
     CryptoSuiteDoubleRatchet(
         digest=HashAlg.SHA3_256,
         cipher=CipherAlg.AES256,
         key_exchange=KeyExchangeAlg.MLKEM768,
+        signing=SigningAlg.MLDSA65,
     ),
     CryptoSuiteDoubleRatchet(
         digest=HashAlg.SHA512,
         cipher=CipherAlg.CHACHA20,
         key_exchange=KeyExchangeAlg.MLKEM1024,
+        signing=SigningAlg.MLDSA87,
     ),
     # Triple Ratchet hybrids
     CryptoSuiteTripleRatchet(
         digest=HashAlg.SHA256,
         cipher=CipherAlg.AES256,
         key_exchange=KeyExchangeAlg.X25519,
+        signing=SigningAlg.ED25519,
         pq_key_exchange=KeyExchangeAlg.MLKEM768,
         scka_chunks=2,
     ),
@@ -67,6 +76,7 @@ SUITES = [
         digest=HashAlg.SHA3_256,
         cipher=CipherAlg.CHACHA20,
         key_exchange=KeyExchangeAlg.X25519,
+        signing=SigningAlg.ED25519,
         pq_key_exchange=KeyExchangeAlg.MLKEM1024,
         scka_chunks=2,
     ),
@@ -113,12 +123,14 @@ def test_default_tag_size():
         digest=HashAlg.SHA256,
         cipher=CipherAlg.AES256,
         key_exchange=KeyExchangeAlg.X25519,
+        signing=SigningAlg.ED25519,
     )
     assert suite.tag_size == DEFAULT_TAG_SIZE
     triple = CryptoSuiteTripleRatchet(
         digest=HashAlg.SHA256,
         cipher=CipherAlg.AES256,
         key_exchange=KeyExchangeAlg.X25519,
+        signing=SigningAlg.ED25519,
         pq_key_exchange=KeyExchangeAlg.MLKEM768,
         scka_chunks=2,
     )
@@ -131,6 +143,7 @@ def test_tag_size_bounds():
             digest=HashAlg.SHA256,
             cipher=CipherAlg.AES256,
             key_exchange=KeyExchangeAlg.X25519,
+        signing=SigningAlg.ED25519,
             tag_size=MIN_TAG_SIZE - 1,
         )
     with pytest.raises(ValueError, match="tag_size"):
@@ -138,6 +151,7 @@ def test_tag_size_bounds():
             digest=HashAlg.SHA256,
             cipher=CipherAlg.AES256,
             key_exchange=KeyExchangeAlg.X25519,
+        signing=SigningAlg.ED25519,
             tag_size=33,
         )
     with pytest.raises(ValueError, match="tag_size"):
@@ -145,6 +159,7 @@ def test_tag_size_bounds():
             digest=HashAlg.SHA256,
             cipher=CipherAlg.AES256,
             key_exchange=KeyExchangeAlg.X25519,
+        signing=SigningAlg.ED25519,
             pq_key_exchange=KeyExchangeAlg.MLKEM768,
             scka_chunks=2,
             tag_size=MIN_TAG_SIZE - 1,
@@ -157,12 +172,14 @@ def test_tag_size_roundtrip_and_wire():
             digest=HashAlg.SHA256,
             cipher=CipherAlg.AES256,
             key_exchange=KeyExchangeAlg.X25519,
+        signing=SigningAlg.ED25519,
             tag_size=MIN_TAG_SIZE,
         ),
         CryptoSuiteTripleRatchet(
             digest=HashAlg.SHA256,
             cipher=CipherAlg.AES256,
             key_exchange=KeyExchangeAlg.X25519,
+        signing=SigningAlg.ED25519,
             pq_key_exchange=KeyExchangeAlg.MLKEM768,
             scka_chunks=2,
             tag_size=MIN_TAG_SIZE,

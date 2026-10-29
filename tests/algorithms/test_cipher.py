@@ -1,6 +1,8 @@
+from __future__ import annotations
+
+from ratchetkit.suite.registry import cipher_backend
 """Symmetric cipher goldens (OpenSSL enc -* -ctr / chacha20) for every CipherAlg."""
 
-from __future__ import annotations
 
 import pytest
 from cryptography.exceptions import UnsupportedAlgorithm
@@ -39,7 +41,7 @@ def test_cipher_matches_openssl(goldens, openssl_name):
     iv = bytes.fromhex(c["iv_hex"])
     plaintext = c["plaintext"].encode("ascii")
     expected = bytes.fromhex(c["ciphertext"][openssl_name])
-    assert alg.impl is cls
+    assert cipher_backend(alg) is cls
     assert cls.key_size == len(key)
     assert cls.iv_size() == len(iv)
     _run_or_skip(cls, key, iv, plaintext, expected)

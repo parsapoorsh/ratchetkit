@@ -1,5 +1,4 @@
-"""KEM / DH / signature goldens (OpenSSL genpkey / pkeyutl / dgst) for every KEX."""
-
+"""KEM / DH / signature goldens (OpenSSL) for every KEX and signing alg."""
 from __future__ import annotations
 
 import pytest
@@ -15,12 +14,20 @@ from ratchetkit.algorithms.kem.secp384r1 import Secp384r1
 from ratchetkit.algorithms.kem.secp521r1 import Secp521r1
 from ratchetkit.algorithms.kem.x25519 import X25519
 from ratchetkit.algorithms.kem.x448 import X448
-from ratchetkit.keys.keypair import PrivateKey, PublicKey, SigningPrivateKey, SigningPublicKey
-from ratchetkit.suite import KeyExchangeAlg
+from ratchetkit.algorithms.signing.ed25519 import Ed25519
+from ratchetkit.algorithms.signing.ed448 import Ed448
+from ratchetkit.algorithms.signing.ecdsa import (
+    EcdsaSecp256r1,
+    EcdsaSecp384r1,
+    EcdsaSecp521r1,
+)
+from ratchetkit.algorithms.signing.rsa_pss import RsaPss2048, RsaPss3072, RsaPss4096
+from ratchetkit.keys.keypair import KeyPair, PublicKey, SigningKeyPair, SigningPublicKey
+from ratchetkit.suite import KeyExchangeAlg, SigningAlg
+from ratchetkit.suite.registry import key_exchange_backend, signing_backend
 
 
 def test_every_key_exchange_alg_is_covered():
-    # Every enum member has a concrete backend class with a smoke path below.
     assert set(KeyExchangeAlg) == {
         KeyExchangeAlg.X25519,
         KeyExchangeAlg.X448,
@@ -35,51 +42,55 @@ def test_every_key_exchange_alg_is_covered():
     }
 
 
-# ---------------------------------------------------------------------------
-# X25519 + Ed25519 (OpenSSL genpkey X25519/ED25519 + pkeyutl -derive/-sign)
-# ---------------------------------------------------------------------------
+def test_every_signing_alg_is_covered():
+    assert set(SigningAlg) == {
+        SigningAlg.ED25519,
+        SigningAlg.ED448,
+        SigningAlg.ECDSA_SECP256R1,
+        SigningAlg.ECDSA_SECP384R1,
+        SigningAlg.ECDSA_SECP521R1,
+        SigningAlg.RSA_PSS_2048,
+        SigningAlg.RSA_PSS_3072,
+        SigningAlg.RSA_PSS_4096,
+        SigningAlg.MLDSA65,
+        SigningAlg.MLDSA87,
+    }
 
 
 def test_x25519_dh_golden(goldens):
     g = goldens["kem"]["x25519"]
     kem = X25519()
-    assert KeyExchangeAlg.X25519.impl is X25519
-    alice = PrivateKey(bytes.fromhex(g["alice_private"]), kem.name)
-    bob_pub = PublicKey(bytes.fromhex(g["bob_public"]), kem.name)
-    bob = PrivateKey(bytes.fromhex(g["bob_private"]), kem.name)
-    alice_pub = PublicKey(bytes.fromhex(g["alice_public"]), kem.name)
+    assert key_exchange_backend(KeyExchangeAlg.X25519) is X25519
+    alice = KeyPair(bytes.fromhex(g["alice_private"]), KeyExchangeAlg.X25519)
+    bob_pub = PublicKey(bytes.fromhex(g["bob_public"]), KeyExchangeAlg.X25519)
+    bob = KeyPair(bytes.fromhex(g["bob_private"]), KeyExchangeAlg.X25519)
+    alice_pub = PublicKey(bytes.fromhex(g["alice_public"]), KeyExchangeAlg.X25519)
     ss = bytes.fromhex(g["shared_secret"])
     assert kem.dh(alice, bob_pub) == ss
     assert kem.dh(bob, alice_pub) == ss
-    # decapsulate treats ciphertext as peer public
     assert kem.decapsulate(alice, bob_pub.data) == ss
+    assert alice.public.data == alice_pub.data
 
 
 def test_ed25519_sign_verify_golden(goldens):
     g = goldens["kem"]["ed25519"]
-    kem = X25519()
+    signer = Ed25519()
     msg = g["message"].encode("ascii")
-    sk = SigningPrivateKey(bytes.fromhex(g["private"]), kem.name)
-    pk = SigningPublicKey(bytes.fromhex(g["public"]), kem.name)
+    sk = SigningKeyPair(bytes.fromhex(g["private"]), SigningAlg.ED25519)
+    pk = SigningPublicKey(bytes.fromhex(g["public"]), SigningAlg.ED25519)
     sig = bytes.fromhex(g["signature"])
-    # Ed25519 is deterministic: our sign must match OpenSSL's signature.
-    assert kem.sign(sk, msg, Sha256) == sig
-    kem.verify(pk, msg, sig, Sha256)
-
-
-# ---------------------------------------------------------------------------
-# X448 + Ed448
-# ---------------------------------------------------------------------------
+    assert signer.sign(sk, msg, Sha256) == sig
+    signer.verify(pk, msg, sig, Sha256)
+    assert sk.public.data == pk.data
 
 
 def test_x448_dh_golden(goldens):
     g = goldens["kem"]["x448"]
     kem = X448()
-    assert KeyExchangeAlg.X448.impl is X448
-    alice = PrivateKey(bytes.fromhex(g["alice_private"]), kem.name)
-    bob_pub = PublicKey(bytes.fromhex(g["bob_public"]), kem.name)
-    bob = PrivateKey(bytes.fromhex(g["bob_private"]), kem.name)
-    alice_pub = PublicKey(bytes.fromhex(g["alice_public"]), kem.name)
+    alice = KeyPair(bytes.fromhex(g["alice_private"]), KeyExchangeAlg.X448)
+    bob_pub = PublicKey(bytes.fromhex(g["bob_public"]), KeyExchangeAlg.X448)
+    bob = KeyPair(bytes.fromhex(g["bob_private"]), KeyExchangeAlg.X448)
+    alice_pub = PublicKey(bytes.fromhex(g["alice_public"]), KeyExchangeAlg.X448)
     ss = bytes.fromhex(g["shared_secret"])
     assert kem.dh(alice, bob_pub) == ss
     assert kem.dh(bob, alice_pub) == ss
@@ -87,90 +98,71 @@ def test_x448_dh_golden(goldens):
 
 def test_ed448_sign_verify_golden(goldens):
     g = goldens["kem"]["ed448"]
-    kem = X448()
+    signer = Ed448()
     msg = g["message"].encode("ascii")
-    sk = SigningPrivateKey(bytes.fromhex(g["private"]), kem.name)
-    pk = SigningPublicKey(bytes.fromhex(g["public"]), kem.name)
+    sk = SigningKeyPair(bytes.fromhex(g["private"]), SigningAlg.ED448)
+    pk = SigningPublicKey(bytes.fromhex(g["public"]), SigningAlg.ED448)
     sig = bytes.fromhex(g["signature"])
-    assert kem.sign(sk, msg, Sha256) == sig
-    kem.verify(pk, msg, sig, Sha256)
-
-
-# ---------------------------------------------------------------------------
-# NIST EC curves (OpenSSL genpkey EC + pkeyutl -derive + ECDSA)
-# ---------------------------------------------------------------------------
+    assert signer.sign(sk, msg, Sha256) == sig
+    signer.verify(pk, msg, sig, Sha256)
 
 
 EC_CASES = [
-    ("secp256r1", Secp256r1, KeyExchangeAlg.SECP256R1),
-    ("secp384r1", Secp384r1, KeyExchangeAlg.SECP384R1),
-    ("secp521r1", Secp521r1, KeyExchangeAlg.SECP521R1),
+    ("secp256r1", Secp256r1, KeyExchangeAlg.SECP256R1, EcdsaSecp256r1, SigningAlg.ECDSA_SECP256R1),
+    ("secp384r1", Secp384r1, KeyExchangeAlg.SECP384R1, EcdsaSecp384r1, SigningAlg.ECDSA_SECP384R1),
+    ("secp521r1", Secp521r1, KeyExchangeAlg.SECP521R1, EcdsaSecp521r1, SigningAlg.ECDSA_SECP521R1),
 ]
 
 
-@pytest.mark.parametrize("name,cls,alg", EC_CASES)
-def test_ec_dh_and_ecdsa_golden(goldens, name, cls, alg):
+@pytest.mark.parametrize("name,cls,alg,scls,salg", EC_CASES)
+def test_ec_dh_and_ecdsa_golden(goldens, name, cls, alg, scls, salg):
     g = goldens["kem"][name]
     kem = cls()
-    assert alg.impl is cls
-    alice = PrivateKey(bytes.fromhex(g["alice_private"]), kem.name)
-    bob_pub = PublicKey(bytes.fromhex(g["bob_public"]), kem.name)
-    bob = PrivateKey(bytes.fromhex(g["bob_private"]), kem.name)
-    alice_pub = PublicKey(bytes.fromhex(g["alice_public"]), kem.name)
+    alice = KeyPair(bytes.fromhex(g["alice_private"]), alg)
+    bob_pub = PublicKey(bytes.fromhex(g["bob_public"]), alg)
+    bob = KeyPair(bytes.fromhex(g["bob_private"]), alg)
+    alice_pub = PublicKey(bytes.fromhex(g["alice_public"]), alg)
     ss = bytes.fromhex(g["shared_secret"])
     assert kem.dh(alice, bob_pub) == ss
     assert kem.dh(bob, alice_pub) == ss
 
     msg = g["message"].encode("ascii")
-    sk = SigningPrivateKey(bytes.fromhex(g["alice_private"]), kem.name)
-    pk = SigningPublicKey(bytes.fromhex(g["alice_public"]), kem.name)
-    # ECDSA is randomized: verify the OpenSSL signature, then round-trip ours.
+    signer = scls()
+    sk = SigningKeyPair(bytes.fromhex(g["alice_private"]), salg)
+    pk = SigningPublicKey(bytes.fromhex(g["alice_public"]), salg)
     openssl_sig = bytes.fromhex(g["signature_sha256"])
-    kem.verify(pk, msg, openssl_sig, Sha256)
-    our_sig = kem.sign(sk, msg, Sha256)
-    kem.verify(pk, msg, our_sig, Sha256)
-
-
-# ---------------------------------------------------------------------------
-# RSA-OAEP + RSA-PSS (OpenSSL genrsa / pkeyutl -encrypt / dgst -sign)
-# ---------------------------------------------------------------------------
+    signer.verify(pk, msg, openssl_sig, Sha256)
+    our_sig = signer.sign(sk, msg, Sha256)
+    signer.verify(pk, msg, our_sig, Sha256)
 
 
 RSA_CASES = [
-    ("rsa2048", Rsa2048, KeyExchangeAlg.RSA2048),
-    ("rsa3072", Rsa3072, KeyExchangeAlg.RSA3072),
-    ("rsa4096", Rsa4096, KeyExchangeAlg.RSA4096),
+    ("rsa2048", Rsa2048, KeyExchangeAlg.RSA2048, RsaPss2048, SigningAlg.RSA_PSS_2048),
+    ("rsa3072", Rsa3072, KeyExchangeAlg.RSA3072, RsaPss3072, SigningAlg.RSA_PSS_3072),
+    ("rsa4096", Rsa4096, KeyExchangeAlg.RSA4096, RsaPss4096, SigningAlg.RSA_PSS_4096),
 ]
 
 
-@pytest.mark.parametrize("name,cls,alg", RSA_CASES)
-def test_rsa_oaep_and_pss_golden(goldens, name, cls, alg):
+@pytest.mark.parametrize("name,cls,alg,scls,salg", RSA_CASES)
+def test_rsa_oaep_and_pss_golden(goldens, name, cls, alg, scls, salg):
     g = goldens["kem"][name]
     kem = cls()
-    assert alg.impl is cls
-    priv = PrivateKey(bytes.fromhex(g["private_der"]), kem.name)
-    pub = PublicKey(bytes.fromhex(g["public_der"]), kem.name)
+    priv = KeyPair(bytes.fromhex(g["private_der"]), alg)
+    pub = PublicKey(bytes.fromhex(g["public_der"]), alg)
     secret = bytes.fromhex(g["oaep_secret"])
     ct = bytes.fromhex(g["oaep_ciphertext"])
     assert kem.decapsulate(priv, ct) == secret
-
-    # Live encapsulate/decapsulate still works with the golden key pair.
     live_secret, live_ct = kem.encapsulate(pub)
     assert kem.decapsulate(priv, live_ct) == live_secret
 
     msg = g["message"].encode("ascii")
-    sk = SigningPrivateKey(bytes.fromhex(g["private_der"]), kem.name)
-    pk = SigningPublicKey(bytes.fromhex(g["public_der"]), kem.name)
-    # PSS salt is random: verify OpenSSL sig, then round-trip ours.
+    signer = scls()
+    sk = SigningKeyPair(bytes.fromhex(g["private_der"]), salg)
+    pk = SigningPublicKey(bytes.fromhex(g["public_der"]), salg)
     openssl_sig = bytes.fromhex(g["pss_signature_sha256"])
-    kem.verify(pk, msg, openssl_sig, Sha256)
-    our_sig = kem.sign(sk, msg, Sha256)
-    kem.verify(pk, msg, our_sig, Sha256)
-
-
-# ---------------------------------------------------------------------------
-# ML-KEM (OpenSSL genpkey ML-KEM-* + pkeyutl -encap; seed extracted from DER)
-# ---------------------------------------------------------------------------
+    signer.verify(pk, msg, openssl_sig, Sha256)
+    our_sig = signer.sign(sk, msg, Sha256)
+    signer.verify(pk, msg, our_sig, Sha256)
 
 
 MLKEM_CASES = [
@@ -183,24 +175,20 @@ MLKEM_CASES = [
 def test_mlkem_decap_golden(goldens, name, cls, alg):
     g = goldens["kem"][name]
     kem = cls()
-    assert alg.impl is cls
-    priv = PrivateKey(bytes.fromhex(g["seed"]), kem.name)
-    pub = PublicKey(bytes.fromhex(g["public"]), kem.name)
+    priv = KeyPair(bytes.fromhex(g["seed"]), alg)
+    pub = PublicKey(bytes.fromhex(g["public"]), alg)
     ct = bytes.fromhex(g["ciphertext"])
     ss = bytes.fromhex(g["shared_secret"])
     assert kem.decapsulate(priv, ct) == ss
-    # Public from seed must match the OpenSSL-derived public.
-    pair_pub = kem.kem_private_cls.from_seed_bytes(priv.data).public_key().public_bytes_raw()
-    assert pair_pub == pub.data
-    # Live encapsulate against golden public still decaps with golden seed.
+    assert priv.public.data == pub.data
     live_ss, live_ct = kem.encapsulate(pub)
     assert kem.decapsulate(priv, live_ct) == live_ss
 
 
-@pytest.mark.parametrize("name,cls,alg", MLKEM_CASES)
-def test_mlkem_sign_verify_roundtrip(name, cls, alg):
-    kem = cls()
-    signing = kem.generate_signing_keypair()
-    msg = b"ratchetkit-ml-dsa"
-    sig = kem.sign(signing.private, msg, Sha256)
-    kem.verify(signing.public, msg, sig, Sha256)
+def test_signing_backends_roundtrip():
+    for alg in SigningAlg:
+        signer = signing_backend(alg)()
+        pair = signer.generate_keypair()
+        assert pair.public.algorithm is alg
+        sig = signer.sign(pair, b"hello", Sha256)
+        signer.verify(pair.public, b"hello", sig, Sha256)

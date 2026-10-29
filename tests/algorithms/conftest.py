@@ -1,5 +1,4 @@
 """Load OpenSSL-generated algorithm goldens."""
-
 from __future__ import annotations
 
 import json

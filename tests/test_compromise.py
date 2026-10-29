@@ -14,8 +14,9 @@ Every case runs against both Double Ratchet and Triple Ratchet suites via the
 ``pair`` fixture. Triple branches use the EC half for root/DH state and hybrid
 EC+SPQR keys where message-key theft is under test.
 """
-
 from __future__ import annotations
+
+from ratchetkit.suite.registry import hash_backend
 
 import pytest
 
@@ -167,7 +168,7 @@ def hollow_from_root(
             root_key=root,
             our_ratchet_key=our_ratchet_key,
         )
-        size = suite.digest.impl.digest_size
+        size = hash_backend(suite.digest).digest_size
         spqr = SparsePostQuantumRatchet.initiate(
             suite,
             b"\x02" * size,
@@ -205,7 +206,7 @@ def skipped_peek(kind: str, session: Session, message: RatchetMessage):
 def our_private(session: Session) -> bytes:
     key = ec_ratchet(session).our_ratchet_key
     assert key is not None
-    return key.private.data
+    return key.private
 
 
 def test_root_only_leak_cannot_decrypt_later_messages(pair):

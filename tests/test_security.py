@@ -16,7 +16,7 @@ from ratchetkit.errors import (
 )
 from ratchetkit.keys.identity import IdentityKeyPair
 from ratchetkit.keys.prekey import OneTimePreKey, SignedPreKey
-from ratchetkit.suite import CipherAlg, CryptoSuiteDoubleRatchet, HashAlg, KeyExchangeAlg
+from ratchetkit.suite import SigningAlg, CipherAlg, CryptoSuiteDoubleRatchet, HashAlg, KeyExchangeAlg
 from ratchetkit.handshake import ExtendedTripleDiffieHellman
 from ratchetkit.keys.keypair import PublicKey
 from ratchetkit.keys.prekey import PreKeyBundle
@@ -180,6 +180,7 @@ def test_kem_requires_one_time_prekey():
         digest=HashAlg.SHA256,
         cipher=CipherAlg.AES256,
         key_exchange=KeyExchangeAlg.RSA2048,
+        signing=SigningAlg.RSA_PSS_2048,
     )
     alice = IdentityKeyPair.generate(suite)
     bob = IdentityKeyPair.generate(suite)
@@ -195,6 +196,7 @@ def test_identity_agreement_bound_in_initial_signature():
         digest=HashAlg.SHA256,
         cipher=CipherAlg.AES256,
         key_exchange=KeyExchangeAlg.X25519,
+        signing=SigningAlg.ED25519,
     )
     alice = IdentityKeyPair.generate(suite)
     bob = IdentityKeyPair.generate(suite)
@@ -227,6 +229,7 @@ def test_initial_identity_algorithm_relabel_rejected():
         digest=HashAlg.SHA256,
         cipher=CipherAlg.AES256,
         key_exchange=KeyExchangeAlg.X25519,
+        signing=SigningAlg.ED25519,
     )
     alice = IdentityKeyPair.generate(suite)
     bob = IdentityKeyPair.generate(suite)
@@ -273,6 +276,7 @@ def test_spk_signature_binds_algorithm_label():
         digest=HashAlg.SHA256,
         cipher=CipherAlg.AES256,
         key_exchange=KeyExchangeAlg.X25519,
+        signing=SigningAlg.ED25519,
     )
     bob = IdentityKeyPair.generate(suite)
     spk = SignedPreKey.generate(1, bob)
@@ -317,6 +321,7 @@ def test_aes128_rejected_at_suite_construction():
             digest=HashAlg.SHA256,
             cipher=CipherAlg.AES128,
             key_exchange=KeyExchangeAlg.X25519,
+        signing=SigningAlg.ED25519,
         )
 
 
@@ -326,6 +331,7 @@ def test_camellia128_rejected_at_suite_construction():
             digest=HashAlg.SHA256,
             cipher=CipherAlg.CAMELLIA128,
             key_exchange=KeyExchangeAlg.X25519,
+        signing=SigningAlg.ED25519,
         )
 
 
@@ -368,6 +374,7 @@ def test_empty_chain_key_rejected():
         digest=HashAlg.SHA256,
         cipher=CipherAlg.AES256,
         key_exchange=KeyExchangeAlg.X25519,
+        signing=SigningAlg.ED25519,
     )
     with pytest.raises(InvalidKey):
         ChainKey(b"", 0, suite)
@@ -382,6 +389,7 @@ def test_empty_root_shared_secret_rejected():
         digest=HashAlg.SHA256,
         cipher=CipherAlg.AES256,
         key_exchange=KeyExchangeAlg.X25519,
+        signing=SigningAlg.ED25519,
     )
     root = RootKey(b"\x01" * 32, suite)
     with pytest.raises(InvalidKey):

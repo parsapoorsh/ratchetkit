@@ -1,6 +1,8 @@
+from __future__ import annotations
+
+from ratchetkit.suite.registry import hash_backend
 """Hash + HMAC goldens (OpenSSL dgst) for every HashAlg."""
 
-from __future__ import annotations
 
 import pytest
 
@@ -27,7 +29,7 @@ def test_hash_digest_matches_openssl(goldens, openssl_name):
     msg = goldens["hash_msg"].encode("ascii")
     alg, cls = HASHES[openssl_name]
     assert cls.new(msg).hexdigest() == goldens["hash"][openssl_name]
-    assert alg.impl is cls
+    assert hash_backend(alg) is cls
     assert cls.digest_size == len(bytes.fromhex(goldens["hash"][openssl_name]))
 
 

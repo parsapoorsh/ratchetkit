@@ -4,6 +4,7 @@ from ratchetkit.algorithms.hash.sha256 import Sha256
 from ratchetkit.kdf import Kdf
 from ratchetkit.keys.chain import ChainKey
 from ratchetkit.suite import (
+    SigningAlg,
     ChainKeySeed,
     CipherAlg,
     CryptoSuiteDoubleRatchet,
@@ -105,6 +106,7 @@ def test_chain_key_derivation_vector():
         digest=HashAlg.SHA256,
         cipher=CipherAlg.AES256,
         key_exchange=KeyExchangeAlg.X25519,
+        signing=SigningAlg.ED25519,
     )
     chain = ChainKey(seed, 0, suite)
     assert chain.key == seed
