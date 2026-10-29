@@ -16,7 +16,7 @@ class Kdf:
 
     def __init__(self, digest: HashAlg | type[HashAlgorithm]):
         if isinstance(digest, HashAlg):
-            self.hash_cls = digest.value
+            self.hash_cls = digest.impl
         else:
             self.hash_cls = digest
 

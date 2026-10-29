@@ -125,7 +125,7 @@ class PostQuantumExtendedDiffieHellman:
         signature = self.kem.sign(
             our_identity.signing.private,
             to_sign,
-            self.suite.digest.value,
+            self.suite.digest.impl,
         )
 
         message = InitialMessage(
@@ -198,7 +198,7 @@ class PostQuantumExtendedDiffieHellman:
                 initial_message.identity_signing,
                 to_verify,
                 initial_message.signature,
-                self.suite.digest.value,
+                self.suite.digest.impl,
             )
         except InvalidSignature:
             raise
@@ -240,7 +240,7 @@ class PostQuantumExtendedDiffieHellman:
                 raise InvalidKey(f"PQXDH secret {index} is empty")
             if not any(secret):
                 raise InvalidKey(f"PQXDH secret {index} is all zeros")
-        size = self.suite.digest.value.digest_size
+        size = self.suite.digest.impl.digest_size
         prefix = b"\xff" * size
         ikm = prefix + b"".join(bytes(s) for s in secrets)
         return self.kdf.hkdf(

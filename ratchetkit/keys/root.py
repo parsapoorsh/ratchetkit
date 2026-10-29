@@ -19,7 +19,7 @@ class RootKey:
     """Root key advanced on each DH/KEM ratchet step."""
 
     def __init__(self, key: bytes, suite: CryptoSuite):
-        expected = suite.digest.value.digest_size
+        expected = suite.digest.impl.digest_size
         if not isinstance(key, (bytes, bytearray)) or len(key) != expected:
             raise InvalidKey(
                 f"root key must be {expected} bytes, got "
@@ -77,7 +77,7 @@ class RootKey:
             raise InvalidKey("DH/KEM shared secret is missing or empty")
         if not any(shared):
             raise InvalidKey("DH/KEM shared secret is all zeros")
-        size = self.suite.digest.value.digest_size
+        size = self.suite.digest.impl.digest_size
         material = self.kdf.hkdf(
             bytes(shared),
             size + size,

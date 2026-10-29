@@ -21,7 +21,7 @@ def test_x3dh_both_sides_same_secret():
     result = x3dh.initiate(alice, bundle)
     bob_secret = x3dh.respond(bob, spk, result.initial_message, opk)
     assert result.shared_secret == bob_secret
-    assert len(result.shared_secret) == suite.digest.value.digest_size
+    assert len(result.shared_secret) == suite.digest.impl.digest_size
 
 
 def test_x3dh_without_one_time_prekey():

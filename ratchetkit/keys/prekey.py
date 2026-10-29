@@ -47,7 +47,7 @@ class SignedPreKey:
         signature = suite.kem.sign(
             identity.signing.private,
             cls.signed_material(pair.public),
-            suite.digest.value,
+            suite.digest.impl,
         )
         return cls(key_id=key_id, key_pair=pair, signature=signature)
 
@@ -111,7 +111,7 @@ class SignedPqPreKey:
         signature = suite.kem.sign(
             identity.signing.private,
             cls.signed_material(pair.public),
-            suite.digest.value,
+            suite.digest.impl,
         )
         return cls(key_id=key_id, key_pair=pair, signature=signature)
 
@@ -165,7 +165,7 @@ class PreKeyBundle:
                 self.identity_signing,
                 SignedPreKey.signed_material(self.signed_prekey),
                 self.signed_prekey_signature,
-                suite.digest.value,
+                suite.digest.impl,
             )
         except InvalidSignature:
             raise
@@ -189,7 +189,7 @@ class PreKeyBundle:
                     self.identity_signing,
                     SignedPqPreKey.signed_material(self.pq_prekey),
                     self.pq_prekey_signature,
-                    suite.digest.value,
+                    suite.digest.impl,
                 )
             except InvalidSignature:
                 raise

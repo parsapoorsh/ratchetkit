@@ -33,8 +33,8 @@ class MessageKeys:
 
     @classmethod
     def derive(cls, seed: bytes, counter: int, suite: CryptoSuite) -> MessageKeys:
-        cipher = suite.cipher.value
-        digest = suite.digest.value
+        cipher = suite.cipher.impl
+        digest = suite.digest.impl
         key_size = cipher.key_size
         mac_size = digest.digest_size
         iv_size = cipher.iv_size()
@@ -58,10 +58,10 @@ class MessageKeys:
         )
 
     def encrypt(self, plaintext: bytes, suite: CryptoSuite) -> bytes:
-        return suite.cipher.value.encrypt(self.cipher_key, self.iv, plaintext)
+        return suite.cipher.impl.encrypt(self.cipher_key, self.iv, plaintext)
 
     def decrypt(self, ciphertext: bytes, suite: CryptoSuite) -> bytes:
-        return suite.cipher.value.decrypt(self.cipher_key, self.iv, ciphertext)
+        return suite.cipher.impl.decrypt(self.cipher_key, self.iv, ciphertext)
 
     def to_bytes(self) -> bytes:
         return (

@@ -1,8 +1,12 @@
-"""Algorithm enums and KDF labels for crypto suites."""
+"""Algorithm enums and KDF labels for crypto suites.
+
+Suite dumps write each algorithm as a fixed ``u32`` id (the enum value).
+Ids are permanent once published; add new algorithms with new ids only.
+"""
 
 from __future__ import annotations
 
-from enum import Enum, IntEnum
+from enum import IntEnum
 
 from ratchetkit.algorithms.cipher.aes128 import Aes128
 from ratchetkit.algorithms.cipher.aes256 import Aes256
@@ -23,41 +27,92 @@ from ratchetkit.algorithms.kem.secp384r1 import Secp384r1
 from ratchetkit.algorithms.kem.secp521r1 import Secp521r1
 from ratchetkit.algorithms.kem.x25519 import X25519
 from ratchetkit.algorithms.kem.x448 import X448
+from ratchetkit.errors import SerializationError
 
 
-class HashAlg(Enum):
-    """Hash algorithm class used for HKDF, HMAC, and signature digests."""
+class HashAlg(IntEnum):
+    """Hash algorithm for HKDF, HMAC, and signature digests."""
 
-    SHA256 = Sha256
-    SHA384 = Sha384
-    SHA512 = Sha512
-    SHA3_256 = Sha3256
-    BLAKE2B = Blake2b
+    SHA256 = 1
+    SHA384 = 2
+    SHA512 = 3
+    SHA3_256 = 4
+    BLAKE2B = 5
+
+    @property
+    def impl(self):
+        """Concrete hash algorithm class."""
+        HASH_IMPL = {
+            HashAlg.SHA256: Sha256,
+            HashAlg.SHA384: Sha384,
+            HashAlg.SHA512: Sha512,
+            HashAlg.SHA3_256: Sha3256,
+            HashAlg.BLAKE2B: Blake2b,
+        }
+        return HASH_IMPL[self]
 
 
-class CipherAlg(Enum):
-    """Symmetric cipher class (key/nonce sizes live on the class)."""
+class CipherAlg(IntEnum):
+    """Symmetric cipher (key/nonce sizes live on the class)."""
 
-    AES128 = Aes128
-    AES256 = Aes256
-    CAMELLIA128 = Camellia128
-    CAMELLIA256 = Camellia256
-    CHACHA20 = ChaCha20
+    AES128 = 1
+    AES256 = 2
+    CAMELLIA128 = 3
+    CAMELLIA256 = 4
+    CHACHA20 = 5
+
+    @property
+    def impl(self):
+        """Concrete cipher algorithm class."""
+        CIPHER_IMPL = {
+            CipherAlg.AES128: Aes128,
+            CipherAlg.AES256: Aes256,
+            CipherAlg.CAMELLIA128: Camellia128,
+            CipherAlg.CAMELLIA256: Camellia256,
+            CipherAlg.CHACHA20: ChaCha20,
+        }
+        return CIPHER_IMPL[self]
 
 
-class KeyExchangeAlg(Enum):
-    """KEM-capable asymmetric algorithm class."""
+class KeyExchangeAlg(IntEnum):
+    """KEM-capable asymmetric algorithm."""
 
-    X25519 = X25519
-    X448 = X448
-    SECP256R1 = Secp256r1
-    SECP384R1 = Secp384r1
-    SECP521R1 = Secp521r1
-    RSA2048 = Rsa2048
-    RSA4096 = Rsa4096
+    X25519 = 1
+    X448 = 2
+    SECP256R1 = 3
+    SECP384R1 = 4
+    SECP521R1 = 5
+    RSA2048 = 6
+    RSA4096 = 7
     # Post-quantum (FIPS 203 ML-KEM + FIPS 204 ML-DSA for identity signing)
-    MLKEM768 = Mlkem768
-    MLKEM1024 = Mlkem1024
+    MLKEM768 = 8
+    MLKEM1024 = 9
+
+    @property
+    def impl(self):
+        """Concrete KEM/DH algorithm class."""
+        KEX_IMPL = {
+            KeyExchangeAlg.X25519: X25519,
+            KeyExchangeAlg.X448: X448,
+            KeyExchangeAlg.SECP256R1: Secp256r1,
+            KeyExchangeAlg.SECP384R1: Secp384r1,
+            KeyExchangeAlg.SECP521R1: Secp521r1,
+            KeyExchangeAlg.RSA2048: Rsa2048,
+            KeyExchangeAlg.RSA4096: Rsa4096,
+            KeyExchangeAlg.MLKEM768: Mlkem768,
+            KeyExchangeAlg.MLKEM1024: Mlkem1024,
+        }
+        return KEX_IMPL[self]
+
+
+def alg_from_id(enum_cls: type[IntEnum], alg_id: int):
+    """Resolve a wire ``u32`` id to an algorithm enum member."""
+    try:
+        return enum_cls(alg_id)
+    except ValueError as exc:
+        raise SerializationError(
+            f"unknown {enum_cls.__name__} id {alg_id}"
+        ) from exc
 
 
 class KdfLabel(IntEnum):

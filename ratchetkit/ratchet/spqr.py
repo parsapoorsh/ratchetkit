@@ -214,7 +214,7 @@ class SparsePostQuantumRatchet:
 
     @staticmethod
     def kdf_init(suite: CryptoSuite, sk: bytes) -> tuple[bytes, bytes, bytes]:
-        size = suite.digest.value.digest_size
+        size = suite.digest.impl.digest_size
         kdf = Kdf(suite.digest)
         material = kdf.hkdf(
             sk,
@@ -225,7 +225,7 @@ class SparsePostQuantumRatchet:
         return material[:size], material[size:size * 2], material[size * 2:]
 
     def kdf_rk(self, scka_out: bytes) -> tuple[bytes, bytes, bytes]:
-        size = self.suite.digest.value.digest_size
+        size = self.suite.digest.impl.digest_size
         material = self.kdf.hkdf(
             scka_out,
             size * 3,

@@ -167,7 +167,7 @@ def hollow_from_root(
             root_key=root,
             our_ratchet_key=our_ratchet_key,
         )
-        size = suite.digest.value.digest_size
+        size = suite.digest.impl.digest_size
         spqr = SparsePostQuantumRatchet.initiate(
             suite,
             b"\x02" * size,

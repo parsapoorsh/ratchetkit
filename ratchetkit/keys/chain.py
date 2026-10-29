@@ -22,7 +22,7 @@ class ChainKey:
     """
 
     def __init__(self, key: bytes, index: int, suite: CryptoSuite):
-        expected = suite.digest.value.digest_size
+        expected = suite.digest.impl.digest_size
         if not isinstance(key, (bytes, bytearray)) or len(key) != expected:
             raise InvalidKey(
                 f"chain key must be {expected} bytes, got "

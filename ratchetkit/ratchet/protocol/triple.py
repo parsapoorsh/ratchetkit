@@ -119,7 +119,7 @@ class TripleRatchet(Ratchet):
     @staticmethod
     def split_sk(suite: CryptoSuite, sk: bytes) -> tuple[bytes, bytes]:
         """Expand handshake SK into SKec and SKscka (spec §7.1)."""
-        size = suite.digest.value.digest_size
+        size = suite.digest.impl.digest_size
         kdf = Kdf(suite.digest)
         material = kdf.hkdf(
             sk,
@@ -131,7 +131,7 @@ class TripleRatchet(Ratchet):
 
     def hybrid_message_key(self, ec_mk: bytes, pq_mk: bytes) -> bytes:
         """KDF_HYBRID(ec_mk, pq_mk) -> seed for MessageKeys.derive."""
-        size = self.suite.digest.value.digest_size
+        size = self.suite.digest.impl.digest_size
         return self.kdf.hkdf(
             ec_mk,
             size,
