@@ -1,11 +1,12 @@
 """Classical Double Ratchet crypto suite (base for Triple as well)."""
-
 from __future__ import annotations
+
 
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
 from ratchetkit.algorithms.kem.base import KemBackend
+from ratchetkit.algorithms.signing.base import SigningBackend
 from ratchetkit.errors import SerializationError
 from ratchetkit.packing import (
     ConstructorId,
@@ -21,6 +22,13 @@ from ratchetkit.suite.algs import (
     CipherAlg,
     HashAlg,
     KeyExchangeAlg,
+    SigningAlg,
+)
+from ratchetkit.suite.registry import (
+    cipher_backend,
+    hash_backend,
+    key_exchange_backend,
+    signing_backend,
 )
 
 if TYPE_CHECKING:
@@ -38,17 +46,13 @@ if TYPE_CHECKING:
 class CryptoSuiteDoubleRatchet:
     """Primitives for X3DH and classical Double Ratchet sessions.
 
+    Agreement and signing are separate: ``key_exchange`` / ``kem`` for
+    confidentiality, ``signing`` / ``signer`` for identity authenticity.
+
     Sizes live on the algorithm classes::
 
-        suite.digest.impl.digest_size
-        suite.cipher.impl.key_size
-        suite.cipher.impl.iv_size()
-
-    Block ciphers always encrypt in CTR inside the cipher class. Cipher keys
-    must be at least 256 bits (AES-256 / ChaCha20 / Camellia-256).
-
-    ``tag_size`` is the on-wire HMAC tag length (truncated digest). Bounds:
-    ``MIN_TAG_SIZE`` .. digest size. MAC *keys* stay full digest length.
+        hash_backend(suite.digest).digest_size
+        cipher_backend(suite.cipher).key_size
 
     Suite dumps write each algorithm as its permanent ``IntEnum`` id (u32).
     """
@@ -56,27 +60,38 @@ class CryptoSuiteDoubleRatchet:
     digest: HashAlg
     cipher: CipherAlg
     key_exchange: KeyExchangeAlg
+    signing: SigningAlg
     tag_size: int = DEFAULT_TAG_SIZE
     kem: KemBackend = field(init=False, repr=False, compare=False)
+    signer: SigningBackend = field(init=False, repr=False, compare=False)
 
     CONSTRUCTOR_ID = ConstructorId.SUITE_DOUBLE
 
     def __post_init__(self) -> None:
-        key_size = self.cipher.impl.key_size
+        key_size = cipher_backend(self.cipher).key_size
         if key_size < MIN_CIPHER_KEY_BYTES:
             raise ValueError(
-                f"cipher {self.cipher.impl.name!r} key size {key_size} "
+                f"cipher {self.cipher.name!r} key size {key_size} "
                 f"is below the {MIN_CIPHER_KEY_BYTES}-byte minimum "
                 "(use AES-256, Camellia-256, or ChaCha20)"
             )
-        digest_size = self.digest.impl.digest_size
+        digest_size = hash_backend(self.digest).digest_size
         if self.tag_size < MIN_TAG_SIZE or self.tag_size > digest_size:
             raise ValueError(
                 f"tag_size {self.tag_size} out of range "
                 f"[{MIN_TAG_SIZE}, {digest_size}] for digest "
-                f"{self.digest.impl.name!r}"
+                f"{self.digest.name!r}"
             )
-        object.__setattr__(self, "kem", self.key_exchange.impl())
+        object.__setattr__(
+            self,
+            "kem",
+            key_exchange_backend(self.key_exchange)(),
+        )
+        object.__setattr__(
+            self,
+            "signer",
+            signing_backend(self.signing)(),
+        )
 
     def handshake(self) -> ExtendedTripleDiffieHellman:
         """Classical X3DH handshake for this suite."""
@@ -108,6 +123,7 @@ class CryptoSuiteDoubleRatchet:
             + encode_u32(int(self.digest))
             + encode_u32(int(self.cipher))
             + encode_u32(int(self.key_exchange))
+            + encode_u32(int(self.signing))
             + encode_u32(self.tag_size)
         )
 
@@ -117,6 +133,7 @@ class CryptoSuiteDoubleRatchet:
         digest_id, offset = read_u32(data, offset)
         cipher_id, offset = read_u32(data, offset)
         kx_id, offset = read_u32(data, offset)
+        signing_id, offset = read_u32(data, offset)
         tag_size, offset = read_u32(data, offset)
         if offset != len(data):
             raise SerializationError("trailing bytes in double suite")
@@ -124,5 +141,6 @@ class CryptoSuiteDoubleRatchet:
             digest=HashAlg.from_id(digest_id),
             cipher=CipherAlg.from_id(cipher_id),
             key_exchange=KeyExchangeAlg.from_id(kx_id),
+            signing=SigningAlg.from_id(signing_id),
             tag_size=tag_size,
         )

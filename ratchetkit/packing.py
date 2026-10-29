@@ -1,6 +1,6 @@
 """MTProto-style 4-byte constructor IDs for on-wire types."""
-
 from __future__ import annotations
+
 
 import struct
 from enum import IntEnum
@@ -79,20 +79,6 @@ def read_bytes(
         raise SerializationError("truncated field body")
     return bytes(data[offset:offset + length]), offset + length
 
-
-def encode_str(value: str) -> bytes:
-    return encode_bytes(value.encode("ascii"))
-
-
-def read_str(
-    data: bytes | memoryview,
-    offset: int,
-) -> tuple[str, int]:
-    raw, offset = read_bytes(data, offset)
-    try:
-        return raw.decode("ascii"), offset
-    except UnicodeDecodeError as exc:
-        raise SerializationError("non-ascii string field") from exc
 
 
 def encode_u32(value: int) -> bytes:

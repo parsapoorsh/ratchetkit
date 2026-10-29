@@ -1,6 +1,6 @@
 """Triple Ratchet (classical + sparse PQ) crypto suite."""
-
 from __future__ import annotations
+
 
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
@@ -19,8 +19,10 @@ from ratchetkit.suite.algs import (
     CipherAlg,
     HashAlg,
     KeyExchangeAlg,
+    SigningAlg,
 )
 from ratchetkit.suite.double import CryptoSuiteDoubleRatchet
+from ratchetkit.suite.registry import key_exchange_backend
 
 if TYPE_CHECKING:
     from ratchetkit.keys.identity import IdentityKeyPair
@@ -51,7 +53,11 @@ class CryptoSuiteTripleRatchet(CryptoSuiteDoubleRatchet):
         super().__post_init__()
         if self.scka_chunks < 1:
             raise ValueError("scka_chunks must be at least 1")
-        object.__setattr__(self, "pq_kem", self.pq_key_exchange.impl())
+        object.__setattr__(
+            self,
+            "pq_kem",
+            key_exchange_backend(self.pq_key_exchange)(),
+        )
 
     def handshake(self) -> PostQuantumExtendedDiffieHellman:
         """PQXDH handshake for this suite (classical DH + PQ KEM)."""
@@ -95,6 +101,7 @@ class CryptoSuiteTripleRatchet(CryptoSuiteDoubleRatchet):
             + encode_u32(int(self.digest))
             + encode_u32(int(self.cipher))
             + encode_u32(int(self.key_exchange))
+            + encode_u32(int(self.signing))
             + encode_u32(self.tag_size)
             + encode_u32(int(self.pq_key_exchange))
             + encode_u32(self.scka_chunks)
@@ -106,6 +113,7 @@ class CryptoSuiteTripleRatchet(CryptoSuiteDoubleRatchet):
         digest_id, offset = read_u32(data, offset)
         cipher_id, offset = read_u32(data, offset)
         kx_id, offset = read_u32(data, offset)
+        signing_id, offset = read_u32(data, offset)
         tag_size, offset = read_u32(data, offset)
         pq_id, offset = read_u32(data, offset)
         chunks, offset = read_u32(data, offset)
@@ -115,6 +123,7 @@ class CryptoSuiteTripleRatchet(CryptoSuiteDoubleRatchet):
             digest=HashAlg.from_id(digest_id),
             cipher=CipherAlg.from_id(cipher_id),
             key_exchange=KeyExchangeAlg.from_id(kx_id),
+            signing=SigningAlg.from_id(signing_id),
             tag_size=tag_size,
             pq_key_exchange=KeyExchangeAlg.from_id(pq_id),
             scka_chunks=chunks,
