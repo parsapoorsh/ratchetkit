@@ -175,8 +175,8 @@ def test_identity_agreement_swap_on_initial():
     suite = make_suite("double")
     alice = IdentityKeyPair.generate(suite)
     bob = IdentityKeyPair.generate(suite)
-    spk = SignedPreKey.generate(bob)
-    opk = OneTimePreKey.generate(suite)
+    spk = SignedPreKey.generate(1, bob)
+    opk = OneTimePreKey.generate(1, suite)
     x3dh = ExtendedTripleDiffieHellman(suite)
     bundle = x3dh.create_bundle(bob, spk, opk)
     result = x3dh.initiate(alice, bundle)
@@ -187,6 +187,8 @@ def test_identity_agreement_swap_on_initial():
         identity_agreement=eve.agreement.public,
         ephemeral_public=initial.ephemeral_public,
         kem_ciphertexts=initial.kem_ciphertexts,
+        signed_prekey_id=initial.signed_prekey_id,
+        one_time_prekey_id=initial.one_time_prekey_id,
         signature=initial.signature,
         ratchet_public=initial.ratchet_public,
     )
@@ -198,8 +200,8 @@ def test_identity_signing_algorithm_relabel():
     suite = make_suite("double")
     alice = IdentityKeyPair.generate(suite)
     bob = IdentityKeyPair.generate(suite)
-    spk = SignedPreKey.generate(bob)
-    opk = OneTimePreKey.generate(suite)
+    spk = SignedPreKey.generate(1, bob)
+    opk = OneTimePreKey.generate(1, suite)
     x3dh = ExtendedTripleDiffieHellman(suite)
     bundle = x3dh.create_bundle(bob, spk, opk)
     result = x3dh.initiate(alice, bundle)
@@ -212,6 +214,8 @@ def test_identity_signing_algorithm_relabel():
         identity_agreement=initial.identity_agreement,
         ephemeral_public=initial.ephemeral_public,
         kem_ciphertexts=initial.kem_ciphertexts,
+        signed_prekey_id=initial.signed_prekey_id,
+        one_time_prekey_id=initial.one_time_prekey_id,
         signature=initial.signature,
         ratchet_public=initial.ratchet_public,
     )
@@ -222,14 +226,16 @@ def test_identity_signing_algorithm_relabel():
 def test_spk_algorithm_relabel_on_bundle():
     suite = make_suite("double")
     bob = IdentityKeyPair.generate(suite)
-    spk = SignedPreKey.generate(bob)
-    opk = OneTimePreKey.generate(suite)
+    spk = SignedPreKey.generate(1, bob)
+    opk = OneTimePreKey.generate(1, suite)
     bundle = suite.create_bundle(bob, spk, opk)
     relabeled = PreKeyBundle(
         identity_signing=bundle.identity_signing,
         identity_agreement=bundle.identity_agreement,
+        signed_prekey_id=bundle.signed_prekey_id,
         signed_prekey=PublicKey(bundle.signed_prekey.data, "rsa2048"),
         signed_prekey_signature=bundle.signed_prekey_signature,
+        one_time_prekey_id=bundle.one_time_prekey_id,
         one_time_prekey=bundle.one_time_prekey,
     )
     with pytest.raises(InvalidSignature):

@@ -53,10 +53,10 @@ def triple_suite():
 def open_pair(suite):
     alice_id = IdentityKeyPair.generate(suite)
     bob_id = IdentityKeyPair.generate(suite)
-    spk = SignedPreKey.generate(bob_id)
-    opk = OneTimePreKey.generate(suite)
+    spk = SignedPreKey.generate(1, bob_id)
+    opk = OneTimePreKey.generate(1, suite)
     if isinstance(suite, CryptoSuiteTripleRatchet):
-        pq = suite.generate_pq_prekey(bob_id)
+        pq = suite.generate_pq_prekey(1, bob_id)
         bundle = suite.create_bundle(bob_id, spk, opk, pq)
         alice, initial = Session.initiate(alice_id, bundle)
         first = alice.encrypt(b"setup")

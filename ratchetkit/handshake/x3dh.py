@@ -37,7 +37,7 @@ class ExtendedTripleDiffieHellman(Handshake):
         self,
         identity: IdentityKeyPair,
         signed_prekey: SignedPreKey,
-        one_time_prekey: OneTimePreKey,
+        one_time_prekey: OneTimePreKey | None = None,
         pq_prekey: SignedPqPreKey | None = None,
     ) -> PreKeyBundle:
         if pq_prekey is not None:
@@ -79,11 +79,16 @@ class ExtendedTripleDiffieHellman(Handshake):
             secrets.append(
                 self.kem.dh(ephemeral, their_bundle.signed_prekey)
             )
-            secrets.append(
-                self.kem.dh(ephemeral, their_bundle.one_time_prekey)
-            )
+            if their_bundle.one_time_prekey is not None:
+                secrets.append(
+                    self.kem.dh(ephemeral, their_bundle.one_time_prekey)
+                )
         else:
-            # KEM-only: encapsulate to SPK + OPK.
+            # KEM-only: encapsulate to SPK + required OPK.
+            if their_bundle.one_time_prekey is None:
+                raise InvalidKey(
+                    "KEM suites require a one-time prekey for forward secrecy"
+                )
             secret, ct = self.kem.encapsulate(their_bundle.signed_prekey)
             secrets.append(secret)
             kem_ciphertexts.append(ct)
@@ -115,6 +120,8 @@ class ExtendedTripleDiffieHellman(Handshake):
             identity_agreement=identity_agreement,
             ephemeral_public=ephemeral.public,
             kem_ciphertexts=tuple(kem_ciphertexts),
+            signed_prekey_id=their_bundle.signed_prekey_id,
+            one_time_prekey_id=their_bundle.one_time_prekey_id,
             signature=signature,
             ratchet_public=ratchet_key.public.data,
         )
@@ -129,7 +136,7 @@ class ExtendedTripleDiffieHellman(Handshake):
         our_identity: IdentityKeyPair,
         our_signed_prekey: SignedPreKey,
         initial_message: InitialMessageX3DH,
-        our_one_time_prekey: OneTimePreKey,
+        our_one_time_prekey: OneTimePreKey | None = None,
         our_pq_prekey: SignedPqPreKey | None = None,
     ) -> bytes:
         # Same signature as PQXDH.respond so Session.accept has one call path.
@@ -140,6 +147,11 @@ class ExtendedTripleDiffieHellman(Handshake):
                 "X3DH cannot accept a PQXDH initial message; "
                 "use PostQuantumExtendedDiffieHellman"
             )
+        self.check_prekey_ids(
+            initial_message,
+            our_signed_prekey,
+            our_one_time_prekey,
+        )
         self.validate_initial_algorithms(initial_message)
         self.verify_initial_signature(
             initial_message,
@@ -170,13 +182,18 @@ class ExtendedTripleDiffieHellman(Handshake):
                     initial_message.ephemeral_public,
                 )
             )
-            secrets.append(
-                self.kem.dh(
-                    our_one_time_prekey.key_pair,
-                    initial_message.ephemeral_public,
+            if our_one_time_prekey is not None:
+                secrets.append(
+                    self.kem.dh(
+                        our_one_time_prekey.key_pair,
+                        initial_message.ephemeral_public,
+                    )
                 )
-            )
         else:
+            if our_one_time_prekey is None:
+                raise InvalidKey(
+                    "KEM suites require a one-time prekey for forward secrecy"
+                )
             cts = list(initial_message.kem_ciphertexts)
             if len(cts) < 2:
                 raise InvalidKey("KEM initial message missing SPK/OPK ciphertexts")

@@ -53,7 +53,7 @@ class Handshake(ABC):
         self,
         identity: IdentityKeyPair,
         signed_prekey: SignedPreKey,
-        one_time_prekey: OneTimePreKey,
+        one_time_prekey: OneTimePreKey | None = None,
         pq_prekey: SignedPqPreKey | None = None,
     ) -> PreKeyBundle:
         """Build and verify a publishable prekey bundle for this protocol."""
@@ -72,7 +72,7 @@ class Handshake(ABC):
         our_identity: IdentityKeyPair,
         our_signed_prekey: SignedPreKey,
         initial_message: InitialMessageX3DH,
-        our_one_time_prekey: OneTimePreKey,
+        our_one_time_prekey: OneTimePreKey | None = None,
         our_pq_prekey: SignedPqPreKey | None = None,
     ) -> bytes:
         """Bob: verify initiator and derive the matching shared secret."""
@@ -125,6 +125,21 @@ class Handshake(ABC):
         if pq_ciphertext is not None:
             material = material + pq_ciphertext
         return material
+
+    def check_prekey_ids(
+        self,
+        initial_message: InitialMessageX3DH,
+        our_signed_prekey: SignedPreKey,
+        our_one_time_prekey: OneTimePreKey | None,
+    ) -> None:
+        """Require SPK/OPK ids on the initial message to match local keys."""
+        if initial_message.signed_prekey_id != our_signed_prekey.key_id:
+            raise InvalidKey("signed prekey id mismatch")
+        if our_one_time_prekey is not None:
+            if initial_message.one_time_prekey_id != our_one_time_prekey.key_id:
+                raise InvalidKey("one-time prekey id mismatch")
+        elif initial_message.one_time_prekey_id is not None:
+            raise InvalidKey("one-time prekey was used but not provided")
 
     def verify_initial_signature(
         self,

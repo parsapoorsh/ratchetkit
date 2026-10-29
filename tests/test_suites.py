@@ -85,10 +85,10 @@ SUITES = [
 def _open_suite(suite: CryptoSuite, plain: bytes = b"suite-hi"):
     alice = IdentityKeyPair.generate(suite)
     bob = IdentityKeyPair.generate(suite)
-    spk = SignedPreKey.generate(bob)
-    opk = OneTimePreKey.generate(suite)
+    spk = SignedPreKey.generate(1, bob)
+    opk = OneTimePreKey.generate(1, suite)
     if isinstance(suite, CryptoSuiteTripleRatchet):
-        pq = suite.generate_pq_prekey(bob)
+        pq = suite.generate_pq_prekey(1, bob)
         bundle = suite.create_bundle(bob, spk, opk, pq)
         alice_sess, initial = Session.initiate(alice, bundle)
         first = alice_sess.encrypt(plain)

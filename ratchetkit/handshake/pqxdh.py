@@ -6,7 +6,7 @@ prekey (typically ML-KEM).
 
 Native ratchetkit framing - not Signal protobuf / wire-compatible.
 
-  SK = KDF_PQXDH(0xFF*n || DH1 || DH2 || DH3 || DH4 || SS_pq)
+  SK = KDF_PQXDH(0xFF*n || DH1 || DH2 || DH3 || [DH4] || SS_pq)
 """
 
 from __future__ import annotations
@@ -56,7 +56,7 @@ class PostQuantumExtendedDiffieHellman(Handshake):
         self,
         identity: IdentityKeyPair,
         signed_prekey: SignedPreKey,
-        one_time_prekey: OneTimePreKey,
+        one_time_prekey: OneTimePreKey | None = None,
         pq_prekey: SignedPqPreKey | None = None,
     ) -> PreKeyBundle:
         if pq_prekey is None:
@@ -81,7 +81,7 @@ class PostQuantumExtendedDiffieHellman(Handshake):
         their_bundle: PreKeyBundle,
     ) -> HandshakeResult:
         their_bundle.verify(self.suite)
-        if their_bundle.pq_prekey is None:
+        if their_bundle.pq_prekey is None or their_bundle.pq_prekey_id is None:
             raise InvalidKey("PQXDH requires a PQ prekey on the bundle")
         if their_bundle.pq_prekey.algorithm != self.pq_kem.algorithm:
             raise InvalidKey(
@@ -98,8 +98,11 @@ class PostQuantumExtendedDiffieHellman(Handshake):
             self.kem.dh(our_identity.agreement, their_bundle.signed_prekey),
             self.kem.dh(ephemeral, their_bundle.identity_agreement),
             self.kem.dh(ephemeral, their_bundle.signed_prekey),
-            self.kem.dh(ephemeral, their_bundle.one_time_prekey),
         ]
+        if their_bundle.one_time_prekey is not None:
+            secrets.append(
+                self.kem.dh(ephemeral, their_bundle.one_time_prekey)
+            )
 
         pq_secret, pq_ciphertext = self.pq_kem.encapsulate(their_bundle.pq_prekey)
         secrets.append(pq_secret)
@@ -123,8 +126,11 @@ class PostQuantumExtendedDiffieHellman(Handshake):
             identity_agreement=identity_agreement,
             ephemeral_public=ephemeral.public,
             kem_ciphertexts=(),
+            signed_prekey_id=their_bundle.signed_prekey_id,
+            one_time_prekey_id=their_bundle.one_time_prekey_id,
             signature=signature,
             ratchet_public=ratchet_key.public.data,
+            pq_prekey_id=their_bundle.pq_prekey_id,
             pq_ciphertext=pq_ciphertext,
         )
         return HandshakeResult(
@@ -138,13 +144,15 @@ class PostQuantumExtendedDiffieHellman(Handshake):
         our_identity: IdentityKeyPair,
         our_signed_prekey: SignedPreKey,
         initial_message: InitialMessagePQXDH,
-        our_one_time_prekey: OneTimePreKey,
+        our_one_time_prekey: OneTimePreKey | None = None,
         our_pq_prekey: SignedPqPreKey | None = None,
     ) -> bytes:
         if our_pq_prekey is None:
             raise InvalidKey("PQXDH respond requires our_pq_prekey")
         if not initial_message.pq_ciphertext:
             raise InvalidKey("PQXDH initial message missing pq_ciphertext")
+        if initial_message.pq_prekey_id != our_pq_prekey.key_id:
+            raise InvalidKey("PQ prekey id mismatch")
         if our_pq_prekey.key_pair.public.algorithm != self.pq_kem.algorithm:
             raise InvalidKey(
                 f"local PQ prekey algorithm "
@@ -156,6 +164,11 @@ class PostQuantumExtendedDiffieHellman(Handshake):
         if initial_message.identity_agreement is None:
             raise InvalidKey("initial message missing identity agreement key")
 
+        self.check_prekey_ids(
+            initial_message,
+            our_signed_prekey,
+            our_one_time_prekey,
+        )
         self.validate_initial_algorithms(initial_message)
         self.verify_initial_signature(
             initial_message,
@@ -176,13 +189,18 @@ class PostQuantumExtendedDiffieHellman(Handshake):
                 our_signed_prekey.key_pair,
                 initial_message.ephemeral_public,
             ),
-            self.kem.dh(
-                our_one_time_prekey.key_pair,
-                initial_message.ephemeral_public,
-            ),
+        ]
+        if our_one_time_prekey is not None:
+            secrets.append(
+                self.kem.dh(
+                    our_one_time_prekey.key_pair,
+                    initial_message.ephemeral_public,
+                )
+            )
+        secrets.append(
             self.pq_kem.decapsulate(
                 our_pq_prekey.key_pair,
                 initial_message.pq_ciphertext,
-            ),
-        ]
+            )
+        )
         return self.derive_secret(secrets)

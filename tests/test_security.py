@@ -176,7 +176,7 @@ def test_previous_counter_recovers_held_message_across_ratchet(pair):
     assert bob.decrypt(held) == b"in-flight"
 
 
-def test_kem_suite_with_one_time_prekey():
+def test_kem_requires_one_time_prekey():
     suite = CryptoSuiteDoubleRatchet(
         digest=HashAlg.SHA256,
         cipher=CipherAlg.AES256,
@@ -185,12 +185,11 @@ def test_kem_suite_with_one_time_prekey():
     )
     alice = IdentityKeyPair.generate(suite)
     bob = IdentityKeyPair.generate(suite)
-    spk = SignedPreKey.generate(bob)
-    opk = OneTimePreKey.generate(suite)
+    spk = SignedPreKey.generate(1, bob)
     x3dh = ExtendedTripleDiffieHellman(suite)
-    bundle = x3dh.create_bundle(bob, spk, opk)
-    result = x3dh.initiate(alice, bundle)
-    assert x3dh.respond(bob, spk, result.initial_message, opk) == result.shared_secret
+    bundle = x3dh.create_bundle(bob, spk, None)
+    with pytest.raises(InvalidKey, match="one-time prekey"):
+        x3dh.initiate(alice, bundle)
 
 
 def test_identity_agreement_bound_in_initial_signature():
@@ -202,8 +201,8 @@ def test_identity_agreement_bound_in_initial_signature():
     )
     alice = IdentityKeyPair.generate(suite)
     bob = IdentityKeyPair.generate(suite)
-    spk = SignedPreKey.generate(bob)
-    opk = OneTimePreKey.generate(suite)
+    spk = SignedPreKey.generate(1, bob)
+    opk = OneTimePreKey.generate(1, suite)
     x3dh = ExtendedTripleDiffieHellman(suite)
     bundle = x3dh.create_bundle(bob, spk, opk)
     result = x3dh.initiate(alice, bundle)
@@ -215,6 +214,8 @@ def test_identity_agreement_bound_in_initial_signature():
         identity_agreement=eve.agreement.public,
         ephemeral_public=initial.ephemeral_public,
         kem_ciphertexts=initial.kem_ciphertexts,
+        signed_prekey_id=initial.signed_prekey_id,
+        one_time_prekey_id=initial.one_time_prekey_id,
         signature=initial.signature,
         ratchet_public=initial.ratchet_public,
     )
@@ -233,8 +234,8 @@ def test_initial_identity_algorithm_relabel_rejected():
     )
     alice = IdentityKeyPair.generate(suite)
     bob = IdentityKeyPair.generate(suite)
-    spk = SignedPreKey.generate(bob)
-    opk = OneTimePreKey.generate(suite)
+    spk = SignedPreKey.generate(1, bob)
+    opk = OneTimePreKey.generate(1, suite)
     x3dh = ExtendedTripleDiffieHellman(suite)
     bundle = x3dh.create_bundle(bob, spk, opk)
     result = x3dh.initiate(alice, bundle)
@@ -247,6 +248,8 @@ def test_initial_identity_algorithm_relabel_rejected():
         identity_agreement=initial.identity_agreement,
         ephemeral_public=initial.ephemeral_public,
         kem_ciphertexts=initial.kem_ciphertexts,
+        signed_prekey_id=initial.signed_prekey_id,
+        one_time_prekey_id=initial.one_time_prekey_id,
         signature=initial.signature,
         ratchet_public=initial.ratchet_public,
     )
@@ -277,15 +280,17 @@ def test_spk_signature_binds_algorithm_label():
         signing=SigningAlg.ED25519,
     )
     bob = IdentityKeyPair.generate(suite)
-    spk = SignedPreKey.generate(bob)
-    opk = OneTimePreKey.generate(suite)
+    spk = SignedPreKey.generate(1, bob)
+    opk = OneTimePreKey.generate(1, suite)
     bundle = suite.create_bundle(bob, spk, opk)
 
     relabeled = PreKeyBundle(
         identity_signing=bundle.identity_signing,
         identity_agreement=bundle.identity_agreement,
+        signed_prekey_id=bundle.signed_prekey_id,
         signed_prekey=PublicKey(bundle.signed_prekey.data, "rsa2048"),
         signed_prekey_signature=bundle.signed_prekey_signature,
+        one_time_prekey_id=bundle.one_time_prekey_id,
         one_time_prekey=bundle.one_time_prekey,
     )
     with pytest.raises(InvalidSignature):
