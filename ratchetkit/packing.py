@@ -116,7 +116,6 @@ def read_bytes(
     return bytes(data[offset:offset + length]), offset + length
 
 
-
 def encode_u32(value: int) -> bytes:
     if value < 0 or value > 0xFFFFFFFF:
         raise SerializationError("u32 out of range")
