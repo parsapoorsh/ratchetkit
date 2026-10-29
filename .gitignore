@@ -13,3 +13,5 @@ venv/
 # example runtime
 example/ratchetkit.sock
 example/*.log
+
+docs/*.pdf
