@@ -31,17 +31,14 @@ pip install -e ".[dev]"
 from ratchetkit.keys.identity import IdentityKeyPair
 from ratchetkit.keys.prekey import OneTimePreKey, SignedPreKey
 from ratchetkit.session import Session
-from ratchetkit.suite import (
-    CipherAlg,
-    CryptoSuiteDoubleRatchet,
-    HashAlg,
-    KeyExchangeAlg,
-)
+from ratchetkit.suite import CipherAlg, HashAlg, KeyExchangeAlg, SigningAlg
+from ratchetkit.suite.double import CryptoSuiteDoubleRatchet
 
 suite = CryptoSuiteDoubleRatchet(
     digest=HashAlg.SHA256,
     cipher=CipherAlg.AES256,
     key_exchange=KeyExchangeAlg.X25519,
+    signing=SigningAlg.ED25519,
 )
 
 alice = IdentityKeyPair.generate(suite)
@@ -76,17 +73,14 @@ Sparse PQ Ratchet driven by chunked ML-KEM SCKA. Message keys are combined with
 `KDF_HYBRID` before encrypt-then-HMAC. All PQ fields are required
 
 ```python
-from ratchetkit.suite import (
-    CipherAlg,
-    CryptoSuiteTripleRatchet,
-    HashAlg,
-    KeyExchangeAlg,
-)
+from ratchetkit.suite import CipherAlg, HashAlg, KeyExchangeAlg, SigningAlg
+from ratchetkit.suite.triple import CryptoSuiteTripleRatchet
 
 suite = CryptoSuiteTripleRatchet(
     digest=HashAlg.SHA256,
     cipher=CipherAlg.AES256,
     key_exchange=KeyExchangeAlg.X25519,       # classical DH ratchet
+    signing=SigningAlg.ED25519,
     pq_key_exchange=KeyExchangeAlg.MLKEM768,  # sparse PQ ratchet
     scka_chunks=8,  # split each ML-KEM payload across 8 app messages
 )
@@ -96,7 +90,7 @@ bob = IdentityKeyPair.generate(suite)
 spk = SignedPreKey.generate(1, bob)
 opk = OneTimePreKey.generate(1, suite)
 pq = suite.generate_pq_prekey(1, bob)
-bundle = suite.create_bundle(bob, spk, opk, pq)
+bundle = suite.create_bundle(bob, spk, pq, opk)
 
 alice_session, initial = Session.initiate(alice, bundle)
 msg = alice_session.encrypt(b"triple hello")
@@ -113,19 +107,16 @@ faster at higher per-message overhead.
 ## Crypto suites
 
 ```python
-from ratchetkit.suite import (
-    CipherAlg,
-    CryptoSuiteDoubleRatchet,
-    CryptoSuiteTripleRatchet,
-    HashAlg,
-    KeyExchangeAlg,
-)
+from ratchetkit.suite import CipherAlg, HashAlg, KeyExchangeAlg, SigningAlg
+from ratchetkit.suite.double import CryptoSuiteDoubleRatchet
+from ratchetkit.suite.triple import CryptoSuiteTripleRatchet
 
 # Classical Double Ratchet only
 double = CryptoSuiteDoubleRatchet(
     digest=HashAlg.SHA512,
     cipher=CipherAlg.CHACHA20,
     key_exchange=KeyExchangeAlg.SECP256R1,
+    signing=SigningAlg.ECDSA_SECP256R1,
 )
 
 # Triple Ratchet: classical + required PQ half
@@ -133,36 +124,45 @@ triple = CryptoSuiteTripleRatchet(
     digest=HashAlg.SHA256,
     cipher=CipherAlg.AES256,
     key_exchange=KeyExchangeAlg.X25519,
+    signing=SigningAlg.ED25519,
     pq_key_exchange=KeyExchangeAlg.MLKEM768,
     scka_chunks=8,
 )
 
-# KEM-only identity path still uses Double Ratchet suite (OPK required).
+# KEM-only agreement path still uses Double Ratchet suite (OPK required).
 # This is not Triple Ratchet - KEM steps run inside Double Ratchet.
 pq_identity = CryptoSuiteDoubleRatchet(
     digest=HashAlg.SHA3_256,
     cipher=CipherAlg.AES256,
     key_exchange=KeyExchangeAlg.MLKEM768,
+    signing=SigningAlg.MLDSA65,
 )
 ```
 
-`CryptoSuiteDoubleRatchet` holds digest / cipher / key_exchange / `kem`.
-`CryptoSuiteTripleRatchet` subclasses it and adds required
-`pq_key_exchange`, `scka_chunks`, and `pq_kem`.
+`CryptoSuiteDoubleRatchet` holds digest / cipher / key_exchange / signing /
+`kem` / `signer`. `CryptoSuiteTripleRatchet` subclasses it and adds required
+`pq_key_exchange`, `scka_chunks`, and `pq_kem`. Agreement and signing are
+independent (`KeyExchangeAlg` vs `SigningAlg`).
 
 Block ciphers always use **CTR** inside the cipher algorithm class. Message
 authentication is always encrypt-then-HMAC. Cipher keys must be **at least
 256 bits** (AES-128 / Camellia-128 are rejected).
 
-Each hash, cipher, and KEM lives in its own class file under
-`ratchetkit/algorithms/hash/`, `ratchetkit/algorithms/cipher/`, and
-`ratchetkit/algorithms/kem/`.
+Each hash, cipher, KEM, and signing backend lives under
+`ratchetkit/algorithms/hash/`, `cipher/`, `kem/`, and `signing/`.
 
-| `KeyExchangeAlg` | Agreement | Identity signatures | Notes |
-|------------------|-----------|---------------------|--------|
-| `X25519` / `X448` / `SECP...` | DH | Ed25519 / Ed448 / ECDSA | classic Double Ratchet |
-| `RSA2048` / `RSA3072` / `RSA4096` | RSA-OAEP KEM | RSA-PSS | OPK required |
-| `MLKEM768` / `MLKEM1024` | ML-KEM | ML-DSA-65 / ML-DSA-87 | OPK required; `cryptography>=45` |
+| `KeyExchangeAlg` | Agreement | Notes |
+|------------------|-----------|--------|
+| `X25519` / `X448` / `SECP...` | DH | classic Double Ratchet |
+| `RSA2048` / `RSA3072` / `RSA4096` | RSA-OAEP KEM | OPK required |
+| `MLKEM768` / `MLKEM1024` | ML-KEM | OPK required; `cryptography>=45` |
+
+| `SigningAlg` | Notes |
+|--------------|--------|
+| `ED25519` / `ED448` | Edwards curves |
+| `ECDSA_SECP...` | NIST ECDSA |
+| `RSA_PSS_2048` / `3072` / `4096` | RSA-PSS |
+| `MLDSA65` / `MLDSA87` | ML-DSA; `cryptography>=45` |
 
 For **Triple Ratchet**, use classical `key_exchange` (e.g. X25519) and set
 `pq_key_exchange` to `MLKEM768` or `MLKEM1024` on `CryptoSuiteTripleRatchet`.
@@ -215,20 +215,23 @@ does not track OPK consumption).
 ```
 ratchetkit/
   algorithms/
-    hash/    # Sha256, Sha512, ...
-    cipher/  # Aes256, ChaCha20, ...
-    kem/     # X25519, Secp256r1, Rsa2048, Mlkem768, ...
-  suite/     # Double + Triple suites, alg enums
-  keys/      # ChainKey, RootKey, MessageKeys, PreKeyBundle, ...
-  handshake/ # X3DH + PQXDH handshakes
-  scka/      # Chunked ML-KEM Sparse Continuous Key Agreement
-  packing.py # ConstructorId enum
+    hash/     # Sha256, Sha512, ...
+    cipher/   # Aes256, ChaCha20, ...
+    kem/      # X25519, Secp256r1, Rsa2048, Mlkem768, ...
+    signing/  # Ed25519, Ecdsa, RsaPss, Mldsa, ...
+  suite/      # Double + Triple suites, alg enums, registry
+  keys/       # ChainKey, RootKey, MessageKeys, PreKeyBundle, ...
+  handshake/  # X3DH + PQXDH handshakes
+  scka/       # Chunked ML-KEM Sparse Continuous Key Agreement
+  packing.py  # Constructor base + ConstructorId
   ratchet/
-    message/   # RatchetMessage ABC, Double + Triple wire codecs
-    protocol/  # Ratchet ABC, DoubleRatchet, TripleRatchet
-    spqr.py    # SparsePostQuantumRatchet
-  session.py # Session facade
+    message/    # RatchetMessage ABC, Double + Triple wire codecs
+    protocol/   # Ratchet ABC, DoubleRatchet, TripleRatchet
+    spqr.py     # SparsePostQuantumRatchet
+  session.py  # Session facade
 ```
+
+A Unix-socket Alice/Bob demo lives under `example/demo1/`.
 
 ## Tests
 
