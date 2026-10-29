@@ -1,8 +1,8 @@
 """Post-Quantum Extended Diffie-Hellman (PQXDH) key agreement.
 
-Peer protocol to :class:`~ratchetkit.handshake.x3dh.ExtendedTripleDiffieHellman`
-(not a subclass). Classical X3DH DH secrets plus one encapsulation to the
-peer's signed PQ prekey (typically ML-KEM).
+Peer protocol to :class:`~ratchetkit.handshake.x3dh.ExtendedTripleDiffieHellman`.
+Classical X3DH DH secrets plus one encapsulation to the peer's signed PQ
+prekey (typically ML-KEM).
 
 Native ratchetkit framing - not Signal protobuf / wire-compatible.
 
@@ -11,13 +11,12 @@ Native ratchetkit framing - not Signal protobuf / wire-compatible.
 
 from __future__ import annotations
 
-from ratchetkit.suite.registry import hash_backend
-
 
 from typing import TYPE_CHECKING
 
-from ratchetkit.errors import InvalidKey, InvalidSignature
-from ratchetkit.kdf import Kdf
+from ratchetkit.errors import InvalidKey
+from ratchetkit.handshake.base import Handshake, HandshakeResult
+from ratchetkit.handshake.message import InitialMessagePQXDH
 from ratchetkit.keys.identity import IdentityKeyPair
 from ratchetkit.keys.prekey import (
     OneTimePreKey,
@@ -26,22 +25,19 @@ from ratchetkit.keys.prekey import (
     SignedPreKey,
 )
 from ratchetkit.suite import KdfLabel
-from ratchetkit.handshake.message import InitialMessagePQXDH
-from ratchetkit.handshake.x3dh import (
-    ExtendedTripleDiffieHellman,
-    ExtendedTripleDiffieHellmanResult,
-)
 
 if TYPE_CHECKING:
     from ratchetkit.algorithms.kem.base import KemBackend
     from ratchetkit.suite.double import CryptoSuiteDoubleRatchet as CryptoSuite
 
 
-class PostQuantumExtendedDiffieHellman:
+class PostQuantumExtendedDiffieHellman(Handshake):
     """PQXDH: classical DH X3DH + required PQ KEM encapsulation.
 
     Requires a DH-capable classical ``suite.kem`` and a separate ``pq_kem``.
     """
+
+    kdf_info = KdfLabel.PQXDH
 
     def __init__(
         self,
@@ -53,9 +49,7 @@ class PostQuantumExtendedDiffieHellman:
                 "PQXDH requires a DH-capable classical key_exchange "
                 f"(got {suite.kem.algorithm!r})"
             )
-        self.suite = suite
-        self.kdf = Kdf(suite.digest)
-        self.kem = suite.kem
+        super().__init__(suite)
         self.pq_kem = pq_kem
 
     def create_bundle(
@@ -85,7 +79,7 @@ class PostQuantumExtendedDiffieHellman:
         self,
         our_identity: IdentityKeyPair,
         their_bundle: PreKeyBundle,
-    ) -> ExtendedTripleDiffieHellmanResult:
+    ) -> HandshakeResult:
         their_bundle.verify(self.suite)
         if their_bundle.pq_prekey is None or their_bundle.pq_prekey_id is None:
             raise InvalidKey("PQXDH requires a PQ prekey on the bundle")
@@ -117,7 +111,7 @@ class PostQuantumExtendedDiffieHellman:
         ratchet_key = self.kem.generate_keypair()
         identity_agreement = our_identity.agreement.public
 
-        to_sign = ExtendedTripleDiffieHellman.initial_signed_material(
+        to_sign = self.initial_signed_material(
             identity_agreement_data=identity_agreement.data,
             ephemeral_public=ephemeral.public.data,
             signed_prekey_public=their_bundle.signed_prekey.data,
@@ -125,11 +119,7 @@ class PostQuantumExtendedDiffieHellman:
             ratchet_public=ratchet_key.public.data,
             pq_ciphertext=pq_ciphertext,
         )
-        signature = self.suite.signer.sign(
-            our_identity.signing,
-            to_sign,
-            hash_backend(self.suite.digest),
-        )
+        signature = self.sign_initial_material(our_identity, to_sign)
 
         message = InitialMessagePQXDH(
             identity_signing=our_identity.signing.public,
@@ -143,7 +133,7 @@ class PostQuantumExtendedDiffieHellman:
             pq_prekey_id=their_bundle.pq_prekey_id,
             pq_ciphertext=pq_ciphertext,
         )
-        return ExtendedTripleDiffieHellmanResult(
+        return HandshakeResult(
             shared_secret=shared,
             initial_message=message,
             ratchet_key=ratchet_key,
@@ -174,75 +164,43 @@ class PostQuantumExtendedDiffieHellman:
         if initial_message.identity_agreement is None:
             raise InvalidKey("initial message missing identity agreement key")
 
-        if initial_message.signed_prekey_id != our_signed_prekey.key_id:
-            raise InvalidKey("signed prekey id mismatch")
-        if our_one_time_prekey is not None:
-            if initial_message.one_time_prekey_id != our_one_time_prekey.key_id:
-                raise InvalidKey("one-time prekey id mismatch")
-        elif initial_message.one_time_prekey_id is not None:
-            raise InvalidKey("one-time prekey was used but not provided")
-
-        ExtendedTripleDiffieHellman(self.suite).validate_initial_algorithms(
+        self.check_prekey_ids(
             initial_message,
+            our_signed_prekey,
+            our_one_time_prekey,
         )
-
-        agreement_data = initial_message.identity_agreement.data
-        to_verify = ExtendedTripleDiffieHellman.initial_signed_material(
-            identity_agreement_data=agreement_data,
-            ephemeral_public=initial_message.ephemeral_public.data,
-            signed_prekey_public=our_signed_prekey.key_pair.public.data,
-            kem_ciphertexts=list(initial_message.kem_ciphertexts),
-            ratchet_public=initial_message.ratchet_public or b"",
+        self.validate_initial_algorithms(initial_message)
+        self.verify_initial_signature(
+            initial_message,
+            our_signed_prekey.key_pair.public.data,
             pq_ciphertext=initial_message.pq_ciphertext,
         )
-        try:
-            self.suite.signer.verify(
-                initial_message.identity_signing,
-                to_verify,
-                initial_message.signature,
-                hash_backend(self.suite.digest),
-            )
-        except InvalidSignature:
-            raise
 
         secrets: list[bytes] = [
-            self.kem.dh(our_signed_prekey.key_pair,
+            self.kem.dh(
+                our_signed_prekey.key_pair,
                 initial_message.identity_agreement,
             ),
-            self.kem.dh(our_identity.agreement,
+            self.kem.dh(
+                our_identity.agreement,
                 initial_message.ephemeral_public,
             ),
-            self.kem.dh(our_signed_prekey.key_pair,
+            self.kem.dh(
+                our_signed_prekey.key_pair,
                 initial_message.ephemeral_public,
             ),
         ]
         if our_one_time_prekey is not None:
             secrets.append(
-                self.kem.dh(our_one_time_prekey.key_pair,
+                self.kem.dh(
+                    our_one_time_prekey.key_pair,
                     initial_message.ephemeral_public,
                 )
             )
         secrets.append(
-            self.pq_kem.decapsulate(our_pq_prekey.key_pair,
+            self.pq_kem.decapsulate(
+                our_pq_prekey.key_pair,
                 initial_message.pq_ciphertext,
             )
         )
         return self.derive_secret(secrets)
-
-    def derive_secret(self, secrets: list[bytes]) -> bytes:
-        if not secrets:
-            raise InvalidKey("no PQXDH secrets to combine")
-        for index, secret in enumerate(secrets):
-            if not isinstance(secret, (bytes, bytearray)) or not secret:
-                raise InvalidKey(f"PQXDH secret {index} is empty")
-            if not any(secret):
-                raise InvalidKey(f"PQXDH secret {index} is all zeros")
-        size = hash_backend(self.suite.digest).digest_size
-        prefix = b"\xff" * size
-        ikm = prefix + b"".join(bytes(s) for s in secrets)
-        return self.kdf.hkdf(
-            ikm,
-            size,
-            salt=None,
-            info=KdfLabel.PQXDH,
-        )
