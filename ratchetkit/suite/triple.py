@@ -13,7 +13,6 @@ from ratchetkit.packing import (
     read_u32,
 )
 from ratchetkit.suite.algs import (
-    DEFAULT_SCKA_CHUNKS,
     CipherAlg,
     HashAlg,
     KeyExchangeAlg,
@@ -42,7 +41,7 @@ class CryptoSuiteTripleRatchet(CryptoSuiteDoubleRatchet):
     """
 
     pq_key_exchange: KeyExchangeAlg
-    scka_chunks: int = DEFAULT_SCKA_CHUNKS
+    scka_chunks: int
     pq_kem: KemBackend = field(init=False, repr=False, compare=False)
 
     CONSTRUCTOR_ID = ConstructorId.SUITE_TRIPLE

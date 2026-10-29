@@ -7,7 +7,6 @@ Import suite classes from ``ratchetkit.suite.double`` /
 """
 
 from ratchetkit.suite.algs import (
-    DEFAULT_SCKA_CHUNKS,
     DEFAULT_TAG_SIZE,
     MIN_CIPHER_KEY_BYTES,
     MIN_TAG_SIZE,

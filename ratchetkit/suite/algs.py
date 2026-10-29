@@ -105,7 +105,3 @@ MIN_CIPHER_KEY_BYTES = 32
 # content MAC; max is the suite digest size (full HMAC). Default 16.
 MIN_TAG_SIZE = 10
 DEFAULT_TAG_SIZE = 16
-
-# Default SCKA amortization: split each PQ KEM payload across this many
-# application messages (ePrint 2025/078 / Signal SPQR-style chunking).
-DEFAULT_SCKA_CHUNKS = 8
