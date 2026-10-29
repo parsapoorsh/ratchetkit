@@ -57,7 +57,7 @@ def open_pair(suite):
     opk = OneTimePreKey.generate(1, suite)
     if isinstance(suite, CryptoSuiteTripleRatchet):
         pq = suite.generate_pq_prekey(1, bob_id)
-        bundle = suite.create_bundle(bob_id, spk, opk, pq)
+        bundle = suite.create_bundle(bob_id, spk, pq, opk)
         alice, initial = Session.initiate(alice_id, bundle)
         first = alice.encrypt(b"setup")
         bob, plain = Session.accept(

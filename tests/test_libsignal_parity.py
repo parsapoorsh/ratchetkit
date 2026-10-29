@@ -177,7 +177,7 @@ def test_corrupted_first_message_accept_then_honest_retry(pair):
     opk = OneTimePreKey.generate(1, suite)
     if kind == "triple":
         pq = suite.generate_pq_prekey(1, bob_id)
-        bundle = suite.create_bundle(bob_id, spk, opk, pq)
+        bundle = suite.create_bundle(bob_id, spk, pq, opk)
         alice, initial = Session.initiate(alice_id, bundle)
         first = alice.encrypt(b"first-ok")
         corrupted = forge_tampered(
@@ -249,7 +249,7 @@ def test_corrupted_initial_message_rejected(pair):
     opk = OneTimePreKey.generate(1, suite)
     if kind == "triple":
         pq = suite.generate_pq_prekey(1, bob_id)
-        bundle = suite.create_bundle(bob_id, spk, opk, pq)
+        bundle = suite.create_bundle(bob_id, spk, pq, opk)
         alice, initial = Session.initiate(alice_id, bundle)
         first = alice.encrypt(b"x")
         bad_initial = _copy_initial(
@@ -287,7 +287,7 @@ def test_initial_ratchet_public_swap_rejected(pair):
     opk = OneTimePreKey.generate(1, suite)
     if kind == "triple":
         pq = suite.generate_pq_prekey(1, bob_id)
-        bundle = suite.create_bundle(bob_id, spk, opk, pq)
+        bundle = suite.create_bundle(bob_id, spk, pq, opk)
         alice, initial = Session.initiate(alice_id, bundle)
         first = alice.encrypt(b"x")
         fake = suite.kem.generate_keypair()
@@ -368,7 +368,7 @@ def test_associated_data_mismatch_on_accept(pair):
     extra = b"channel-7"
     if kind == "triple":
         pq = suite.generate_pq_prekey(1, bob_id)
-        bundle = suite.create_bundle(bob_id, spk, opk, pq)
+        bundle = suite.create_bundle(bob_id, spk, pq, opk)
         alice, initial = Session.initiate(alice_id, bundle)
         first = alice.encrypt(b"ad-first", associated_data=extra)
         with pytest.raises(InvalidMessage):
@@ -434,7 +434,7 @@ def test_spk_and_opk_id_mismatch_on_respond(pair):
     opk = OneTimePreKey.generate(1, suite)
     if kind == "triple":
         pq = suite.generate_pq_prekey(1, bob_id)
-        bundle = suite.create_bundle(bob_id, spk, opk, pq)
+        bundle = suite.create_bundle(bob_id, spk, pq, opk)
         alice, initial = Session.initiate(alice_id, bundle)
         first = alice.encrypt(b"x")
         wrong_spk = SignedPreKey.generate(99, bob_id)

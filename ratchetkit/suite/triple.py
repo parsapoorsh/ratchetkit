@@ -76,20 +76,15 @@ class CryptoSuiteTripleRatchet(CryptoSuiteDoubleRatchet):
         self,
         identity: IdentityKeyPair,
         signed_prekey: SignedPreKey,
+        pq_prekey: SignedPqPreKey,
         one_time_prekey: OneTimePreKey | None = None,
-        pq_prekey: SignedPqPreKey | None = None,
     ) -> PreKeyBundle:
-        """Publish a PQXDH prekey bundle (requires ``pq_prekey`` private stay local)."""
-        if pq_prekey is None:
-            raise ValueError(
-                "CryptoSuiteTripleRatchet.create_bundle requires pq_prekey "
-                "(use suite.generate_pq_prekey(key_id, identity))"
-            )
+        """Publish a PQXDH prekey bundle (``pq_prekey`` private stays local)."""
         return self.handshake().create_bundle(
             identity,
             signed_prekey,
-            one_time_prekey,
             pq_prekey,
+            one_time_prekey,
         )
 
     def to_bytes(self) -> bytes:

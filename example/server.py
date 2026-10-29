@@ -36,7 +36,7 @@ def main() -> None:
         if isinstance(suite, CryptoSuiteTripleRatchet)
         else None
     )
-    bundle = suite.create_bundle(bob, spk, opk, pq)
+    bundle = suite.create_bundle(bob, spk, pq, opk)
     print(
         f"[bob]   identity {fingerprint(bob.signing.public.data)}  "
         f"spk_id={spk.key_id}  opk_id={opk.key_id}  "

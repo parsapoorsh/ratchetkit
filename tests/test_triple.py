@@ -34,7 +34,7 @@ def setup_triple(n_chunks=2):
     spk = SignedPreKey.generate(1, bob)
     opk = OneTimePreKey.generate(1, suite)
     pq = suite.generate_pq_prekey(1, bob)
-    bundle = suite.create_bundle(bob, spk, opk, pq)
+    bundle = suite.create_bundle(bob, spk, pq, opk)
     alice_sess, initial = Session.initiate(alice, bundle)
     assert isinstance(alice_sess.ratchet, TripleRatchet)
     first = alice_sess.encrypt(b"hi")
@@ -103,7 +103,7 @@ def test_triple_with_mlkem1024():
     spk = SignedPreKey.generate(1, bob)
     opk = OneTimePreKey.generate(1, suite)
     pq = suite.generate_pq_prekey(1, bob)
-    bundle = suite.create_bundle(bob, spk, opk, pq)
+    bundle = suite.create_bundle(bob, spk, pq, opk)
     a_sess, initial = Session.initiate(alice, bundle)
     first = a_sess.encrypt(b"pq")
     b_sess, plain = Session.accept(
