@@ -23,10 +23,8 @@ class InitialMessageX3DH(Constructor):
     identity_signing: SigningPublicKey
     identity_agreement: PublicKey | None
     ephemeral_public: PublicKey
-    # For KEM-only suites: encapsulations to SPK / OPK (optional trailing).
+    # For KEM-only suites: encapsulations to SPK / OPK.
     kem_ciphertexts: tuple[bytes, ...]
-    signed_prekey_id: int
-    one_time_prekey_id: int | None
     signature: bytes
     # Optional first ratchet public used to seed the Double Ratchet.
     ratchet_public: bytes | None = None
@@ -58,11 +56,6 @@ class InitialMessageX3DH(Constructor):
         )
         for ct in self.kem_ciphertexts:
             parts.append(self.encode_field(ct))
-        parts.append(struct.pack(">I", self.signed_prekey_id))
-        if self.one_time_prekey_id is None:
-            parts.append(b"\x00")
-        else:
-            parts.extend([b"\x01", struct.pack(">I", self.one_time_prekey_id)])
         parts.append(self.encode_field(self.signature))
         if self.ratchet_public is None:
             parts.append(b"\x00")
@@ -96,18 +89,6 @@ class InitialMessageX3DH(Constructor):
         for _ in range(ct_count):
             ct, offset = cls.read_field(view, offset)
             ciphertexts.append(ct)
-        if offset + 4 > len(view):
-            raise SerializationError("truncated signed prekey id")
-        signed_prekey_id = struct.unpack_from(">I", view, offset)[0]
-        offset += 4
-        has_opk = view[offset]
-        offset += 1
-        one_time_prekey_id = None
-        if has_opk:
-            if offset + 4 > len(view):
-                raise SerializationError("truncated one-time prekey id")
-            one_time_prekey_id = struct.unpack_from(">I", view, offset)[0]
-            offset += 4
         signature, offset = cls.read_field(view, offset)
         if offset >= len(view):
             raise SerializationError("truncated initial message ratchet flag")
@@ -117,12 +98,16 @@ class InitialMessageX3DH(Constructor):
         if has_ratchet:
             ratchet_public, offset = cls.read_field(view, offset)
         fields = dict(
-            identity_signing=SigningPublicKey(identity_data, SigningAlg.from_id(identity_alg_id)),
+            identity_signing=SigningPublicKey(
+                identity_data,
+                SigningAlg.from_id(identity_alg_id),
+            ),
             identity_agreement=identity_agreement,
-            ephemeral_public=PublicKey(ephemeral_data, KeyExchangeAlg.from_id(ephemeral_alg_id)),
+            ephemeral_public=PublicKey(
+                ephemeral_data,
+                KeyExchangeAlg.from_id(ephemeral_alg_id),
+            ),
             kem_ciphertexts=tuple(ciphertexts),
-            signed_prekey_id=signed_prekey_id,
-            one_time_prekey_id=one_time_prekey_id,
             signature=signature,
             ratchet_public=ratchet_public,
         )
@@ -161,7 +146,6 @@ class InitialMessageX3DH(Constructor):
 class InitialMessagePQXDH(InitialMessageX3DH):
     """First message of a PQXDH handshake (X3DH fields + PQ encapsulation)."""
 
-    pq_prekey_id: int = 0
     pq_ciphertext: bytes = b""
 
     CONSTRUCTOR_ID = ConstructorId.INITIAL_MESSAGE_PQXDH
@@ -171,11 +155,7 @@ class InitialMessagePQXDH(InitialMessageX3DH):
             raise ValueError("InitialMessagePQXDH requires pq_ciphertext")
 
     def encode_body(self) -> bytes:
-        return (
-            super().encode_body()
-            + struct.pack(">I", self.pq_prekey_id)
-            + self.encode_field(self.pq_ciphertext)
-        )
+        return super().encode_body() + self.encode_field(self.pq_ciphertext)
 
     @classmethod
     def from_bytes(cls, data: bytes) -> InitialMessagePQXDH:
@@ -184,15 +164,10 @@ class InitialMessagePQXDH(InitialMessageX3DH):
             raise SerializationError("empty initial message")
         offset = cls.constructor_expect(view)
         fields, offset = cls.decode_body(view, offset)
-        if offset + 4 > len(view):
-            raise SerializationError("truncated PQ prekey id")
-        pq_prekey_id = struct.unpack_from(">I", view, offset)[0]
-        offset += 4
         pq_ciphertext, offset = cls.read_field(view, offset)
         if offset != len(view):
             raise SerializationError("trailing bytes in PQXDH initial message")
         return cls(
             **fields,
-            pq_prekey_id=pq_prekey_id,
             pq_ciphertext=pq_ciphertext,
         )

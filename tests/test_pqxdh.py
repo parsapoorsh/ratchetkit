@@ -40,8 +40,8 @@ def test_suite_create_bundle_double():
         signing=SigningAlg.ED25519,
     )
     bob = IdentityKeyPair.generate(suite)
-    spk = SignedPreKey.generate(1, bob)
-    opk = OneTimePreKey.generate(1, suite)
+    spk = SignedPreKey.generate(bob)
+    opk = OneTimePreKey.generate(suite)
     bundle = suite.create_bundle(bob, spk, opk)
     assert bundle.pq_prekey is None
     assert isinstance(suite.handshake(), ExtendedTripleDiffieHellman)
@@ -50,13 +50,12 @@ def test_suite_create_bundle_double():
 def test_suite_create_bundle_triple_requires_pq_prekey():
     suite = triple_suite()
     bob = IdentityKeyPair.generate(suite)
-    spk = SignedPreKey.generate(1, bob)
-    opk = OneTimePreKey.generate(1, suite)
+    spk = SignedPreKey.generate(bob)
+    opk = OneTimePreKey.generate(suite)
     with pytest.raises(ValueError, match="pq_prekey"):
         suite.create_bundle(bob, spk, opk)
-    pq = suite.generate_pq_prekey(7, bob)
+    pq = suite.generate_pq_prekey(bob)
     bundle = suite.create_bundle(bob, spk, opk, pq)
-    assert bundle.pq_prekey_id == 7
     assert bundle.pq_prekey is not None
     assert isinstance(suite.handshake(), PostQuantumExtendedDiffieHellman)
 
@@ -65,38 +64,25 @@ def test_pqxdh_both_sides_same_secret():
     suite = triple_suite()
     alice = IdentityKeyPair.generate(suite)
     bob = IdentityKeyPair.generate(suite)
-    spk = SignedPreKey.generate(1, bob)
-    opk = OneTimePreKey.generate(1, suite)
-    pq = suite.generate_pq_prekey(1, bob)
+    spk = SignedPreKey.generate(bob)
+    opk = OneTimePreKey.generate(suite)
+    pq = suite.generate_pq_prekey(bob)
     hs = suite.handshake()
     bundle = hs.create_bundle(bob, spk, opk, pq)
     result = hs.initiate(alice, bundle)
     bob_secret = hs.respond(bob, spk, result.initial_message, opk, pq)
     assert result.shared_secret == bob_secret
     assert result.initial_message.pq_ciphertext is not None
-    assert result.initial_message.pq_prekey_id == 1
 
-
-def test_pqxdh_without_one_time_prekey():
-    suite = triple_suite()
-    alice = IdentityKeyPair.generate(suite)
-    bob = IdentityKeyPair.generate(suite)
-    spk = SignedPreKey.generate(1, bob)
-    pq = suite.generate_pq_prekey(1, bob)
-    hs = suite.handshake()
-    bundle = hs.create_bundle(bob, spk, None, pq)
-    result = hs.initiate(alice, bundle)
-    bob_secret = hs.respond(bob, spk, result.initial_message, None, pq)
-    assert result.shared_secret == bob_secret
 
 
 def test_pqxdh_bad_signature_rejected():
     suite = triple_suite()
     alice = IdentityKeyPair.generate(suite)
     bob = IdentityKeyPair.generate(suite)
-    spk = SignedPreKey.generate(1, bob)
-    opk = OneTimePreKey.generate(1, suite)
-    pq = suite.generate_pq_prekey(1, bob)
+    spk = SignedPreKey.generate(bob)
+    opk = OneTimePreKey.generate(suite)
+    pq = suite.generate_pq_prekey(bob)
     hs = suite.handshake()
     bundle = hs.create_bundle(bob, spk, opk, pq)
     result = hs.initiate(alice, bundle)
@@ -106,11 +92,8 @@ def test_pqxdh_bad_signature_rejected():
         identity_agreement=initial.identity_agreement,
         ephemeral_public=initial.ephemeral_public,
         kem_ciphertexts=initial.kem_ciphertexts,
-        signed_prekey_id=initial.signed_prekey_id,
-        one_time_prekey_id=initial.one_time_prekey_id,
         signature=bytes([initial.signature[0] ^ 0xFF]) + initial.signature[1:],
         ratchet_public=initial.ratchet_public,
-        pq_prekey_id=initial.pq_prekey_id,
         pq_ciphertext=initial.pq_ciphertext,
     )
     with pytest.raises(InvalidSignature):
@@ -121,9 +104,9 @@ def test_pqxdh_ciphertext_swap_rejected():
     suite = triple_suite()
     alice = IdentityKeyPair.generate(suite)
     bob = IdentityKeyPair.generate(suite)
-    spk = SignedPreKey.generate(1, bob)
-    opk = OneTimePreKey.generate(1, suite)
-    pq = suite.generate_pq_prekey(1, bob)
+    spk = SignedPreKey.generate(bob)
+    opk = OneTimePreKey.generate(suite)
+    pq = suite.generate_pq_prekey(bob)
     hs = suite.handshake()
     bundle = hs.create_bundle(bob, spk, opk, pq)
     result = hs.initiate(alice, bundle)
@@ -135,11 +118,8 @@ def test_pqxdh_ciphertext_swap_rejected():
         identity_agreement=initial.identity_agreement,
         ephemeral_public=initial.ephemeral_public,
         kem_ciphertexts=initial.kem_ciphertexts,
-        signed_prekey_id=initial.signed_prekey_id,
-        one_time_prekey_id=initial.one_time_prekey_id,
         signature=initial.signature,
         ratchet_public=initial.ratchet_public,
-        pq_prekey_id=initial.pq_prekey_id,
         pq_ciphertext=other_ct,
     )
     with pytest.raises(InvalidSignature):
@@ -149,9 +129,9 @@ def test_pqxdh_ciphertext_swap_rejected():
 def test_x3dh_rejects_pq_bundle():
     suite = triple_suite()
     bob = IdentityKeyPair.generate(suite)
-    spk = SignedPreKey.generate(1, bob)
-    opk = OneTimePreKey.generate(1, suite)
-    pq = suite.generate_pq_prekey(1, bob)
+    spk = SignedPreKey.generate(bob)
+    opk = OneTimePreKey.generate(suite)
+    pq = suite.generate_pq_prekey(bob)
     bundle = suite.create_bundle(bob, spk, opk, pq)
     alice = IdentityKeyPair.generate(suite)
     x3dh = ExtendedTripleDiffieHellman(suite)
@@ -163,9 +143,9 @@ def test_session_triple_via_pqxdh():
     suite = triple_suite()
     alice = IdentityKeyPair.generate(suite)
     bob = IdentityKeyPair.generate(suite)
-    spk = SignedPreKey.generate(1, bob)
-    opk = OneTimePreKey.generate(1, suite)
-    pq = suite.generate_pq_prekey(1, bob)
+    spk = SignedPreKey.generate(bob)
+    opk = OneTimePreKey.generate(suite)
+    pq = suite.generate_pq_prekey(bob)
     bundle = suite.create_bundle(bob, spk, opk, pq)
     a_sess, initial = Session.initiate(alice, bundle)
     assert initial.pq_ciphertext is not None
@@ -185,17 +165,15 @@ def test_session_triple_via_pqxdh():
 def test_bundle_and_initial_roundtrip_with_pq_fields():
     suite = triple_suite()
     bob = IdentityKeyPair.generate(suite)
-    spk = SignedPreKey.generate(1, bob)
-    opk = OneTimePreKey.generate(3, suite)
-    pq = suite.generate_pq_prekey(9, bob)
+    spk = SignedPreKey.generate(bob)
+    opk = OneTimePreKey.generate(suite)
+    pq = suite.generate_pq_prekey(bob)
     bundle = suite.create_bundle(bob, spk, opk, pq)
     restored = type(bundle).from_bytes(bundle.to_bytes())
-    assert restored.pq_prekey_id == 9
     assert restored.pq_prekey == bundle.pq_prekey
     assert restored.pq_prekey_signature == bundle.pq_prekey_signature
 
     alice = IdentityKeyPair.generate(suite)
     result = suite.handshake().initiate(alice, restored)
     init2 = InitialMessagePQXDH.from_bytes(result.initial_message.to_bytes())
-    assert init2.pq_prekey_id == 9
     assert init2.pq_ciphertext == result.initial_message.pq_ciphertext

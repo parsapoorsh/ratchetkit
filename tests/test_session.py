@@ -29,10 +29,10 @@ def test_ratchet_message_bytes_roundtrip(pair):
     suite = make_suite(kind)
     alice_id = IdentityKeyPair.generate(suite)
     bob_id = IdentityKeyPair.generate(suite)
-    spk = SignedPreKey.generate(1, bob_id)
-    opk = OneTimePreKey.generate(1, suite)
+    spk = SignedPreKey.generate(bob_id)
+    opk = OneTimePreKey.generate(suite)
     if kind == "triple":
-        pq = suite.generate_pq_prekey(1, bob_id)
+        pq = suite.generate_pq_prekey(bob_id)
         bundle = suite.create_bundle(bob_id, spk, opk, pq)
         alice, initial = Session.initiate(alice_id, bundle)
         first = alice.encrypt(b"wire")
@@ -91,11 +91,11 @@ def test_session_accept_extra_associated_data(pair):
     suite = make_suite(kind)
     alice_id = IdentityKeyPair.generate(suite)
     bob_id = IdentityKeyPair.generate(suite)
-    spk = SignedPreKey.generate(1, bob_id)
-    opk = OneTimePreKey.generate(1, suite)
+    spk = SignedPreKey.generate(bob_id)
+    opk = OneTimePreKey.generate(suite)
     extra = b"first-extra"
     if kind == "triple":
-        pq = suite.generate_pq_prekey(1, bob_id)
+        pq = suite.generate_pq_prekey(bob_id)
         bundle = suite.create_bundle(bob_id, spk, opk, pq)
         alice, initial = Session.initiate(alice_id, bundle)
         first = alice.encrypt(b"hello-ad", associated_data=extra)

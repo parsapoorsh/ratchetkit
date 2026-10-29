@@ -29,17 +29,16 @@ def main() -> None:
     else:
         Message = DoubleRatchetMessage
     bob = IdentityKeyPair.generate(suite)
-    spk = SignedPreKey.generate(1, bob)
-    opk = OneTimePreKey.generate(42, suite)
+    spk = SignedPreKey.generate(bob)
+    opk = OneTimePreKey.generate(suite)
     pq = (
-        suite.generate_pq_prekey(1, bob)
+        suite.generate_pq_prekey(bob)
         if isinstance(suite, CryptoSuiteTripleRatchet)
         else None
     )
     bundle = suite.create_bundle(bob, spk, opk, pq)
     print(
         f"[bob]   identity {fingerprint(bob.signing.public.data)}  "
-        f"spk_id={spk.key_id}  opk_id={opk.key_id}  "
         f"({Message.__name__})"
     )
 

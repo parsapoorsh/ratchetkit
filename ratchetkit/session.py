@@ -93,7 +93,7 @@ class Session(Constructor):
         our_signed_prekey: SignedPreKey,
         initial: InitialMessageX3DH,
         message: RatchetMessage,
-        our_one_time_prekey: OneTimePreKey | None = None,
+        our_one_time_prekey: OneTimePreKey,
         associated_data: bytes = b"",
         our_pq_prekey: SignedPqPreKey | None = None,
     ) -> tuple[Session, bytes]:

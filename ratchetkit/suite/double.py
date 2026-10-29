@@ -102,7 +102,7 @@ class CryptoSuiteDoubleRatchet(Constructor):
         self,
         identity: IdentityKeyPair,
         signed_prekey: SignedPreKey,
-        one_time_prekey: OneTimePreKey | None = None,
+        one_time_prekey: OneTimePreKey,
         pq_prekey: SignedPqPreKey | None = None,
     ) -> PreKeyBundle:
         """Publish a classical X3DH prekey bundle (``pq_prekey`` must be None)."""

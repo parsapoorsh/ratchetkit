@@ -41,8 +41,6 @@ def main() -> None:
         bundle.verify(suite)
         print(
             f"[alice] bundle ok  "
-            f"spk_id={bundle.signed_prekey_id}  "
-            f"opk_id={bundle.one_time_prekey_id}  "
             f"bob={fingerprint(bundle.identity_signing.data)}"
         )
 

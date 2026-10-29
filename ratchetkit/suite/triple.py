@@ -64,26 +64,25 @@ class CryptoSuiteTripleRatchet(CryptoSuiteDoubleRatchet):
 
     def generate_pq_prekey(
         self,
-        key_id: int,
         identity: IdentityKeyPair,
     ) -> SignedPqPreKey:
         """Generate a signed PQ prekey with this suite's ``pq_kem``."""
         from ratchetkit.keys.prekey import SignedPqPreKey
 
-        return SignedPqPreKey.generate(key_id, identity, self.pq_kem)
+        return SignedPqPreKey.generate(identity, self.pq_kem)
 
     def create_bundle(
         self,
         identity: IdentityKeyPair,
         signed_prekey: SignedPreKey,
-        one_time_prekey: OneTimePreKey | None = None,
+        one_time_prekey: OneTimePreKey,
         pq_prekey: SignedPqPreKey | None = None,
     ) -> PreKeyBundle:
         """Publish a PQXDH prekey bundle (requires ``pq_prekey`` private stay local)."""
         if pq_prekey is None:
             raise ValueError(
                 "CryptoSuiteTripleRatchet.create_bundle requires pq_prekey "
-                "(use suite.generate_pq_prekey(key_id, identity))"
+                "(use suite.generate_pq_prekey(identity))"
             )
         return self.handshake().create_bundle(
             identity,
