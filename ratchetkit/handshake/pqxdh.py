@@ -111,7 +111,7 @@ class PostQuantumExtendedDiffieHellman(Handshake):
         ratchet_key = self.kem.generate_keypair()
         identity_agreement = our_identity.agreement.public
 
-        to_sign = self.initial_signed_material(
+        to_sign = InitialMessagePQXDH.signed_material(
             identity_agreement_data=identity_agreement.data,
             ephemeral_public=ephemeral.public.data,
             signed_prekey_public=their_bundle.signed_prekey.data,
@@ -151,8 +151,6 @@ class PostQuantumExtendedDiffieHellman(Handshake):
             raise InvalidKey("PQXDH respond requires our_pq_prekey")
         if not initial_message.pq_ciphertext:
             raise InvalidKey("PQXDH initial message missing pq_ciphertext")
-        if initial_message.pq_prekey_id != our_pq_prekey.key_id:
-            raise InvalidKey("PQ prekey id mismatch")
         if our_pq_prekey.key_pair.public.algorithm != self.pq_kem.algorithm:
             raise InvalidKey(
                 f"local PQ prekey algorithm "
@@ -164,16 +162,15 @@ class PostQuantumExtendedDiffieHellman(Handshake):
         if initial_message.identity_agreement is None:
             raise InvalidKey("initial message missing identity agreement key")
 
-        self.check_prekey_ids(
-            initial_message,
+        initial_message.check_prekey_ids(
             our_signed_prekey,
             our_one_time_prekey,
+            our_pq_prekey_id=our_pq_prekey.key_id,
         )
         self.validate_initial_algorithms(initial_message)
-        self.verify_initial_signature(
-            initial_message,
+        initial_message.verify_initial_signature(
+            self.suite,
             our_signed_prekey.key_pair.public.data,
-            pq_ciphertext=initial_message.pq_ciphertext,
         )
 
         secrets: list[bytes] = [

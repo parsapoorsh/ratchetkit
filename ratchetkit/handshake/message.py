@@ -4,8 +4,9 @@ from __future__ import annotations
 
 import struct
 from dataclasses import dataclass
+from typing import TYPE_CHECKING
 
-from ratchetkit.errors import SerializationError
+from ratchetkit.errors import InvalidKey, InvalidSignature, SerializationError
 from ratchetkit.suite.algs import KeyExchangeAlg, SigningAlg
 from ratchetkit.keys.keypair import PublicKey, SigningPublicKey
 from ratchetkit.packing import (
@@ -14,6 +15,11 @@ from ratchetkit.packing import (
     read_u32,
     ConstructorId,
 )
+from ratchetkit.suite.registry import hash_backend
+
+if TYPE_CHECKING:
+    from ratchetkit.keys.prekey import OneTimePreKey, SignedPreKey
+    from ratchetkit.suite.double import CryptoSuiteDoubleRatchet as CryptoSuite
 
 
 @dataclass
@@ -32,6 +38,77 @@ class InitialMessageX3DH(Constructor):
     ratchet_public: bytes | None = None
 
     CONSTRUCTOR_ID = ConstructorId.INITIAL_MESSAGE_X3DH
+
+    @staticmethod
+    def signed_material(
+        identity_agreement_data: bytes,
+        ephemeral_public: bytes,
+        signed_prekey_public: bytes,
+        kem_ciphertexts: list[bytes] | tuple[bytes, ...],
+        ratchet_public: bytes,
+        pq_ciphertext: bytes | None = None,
+    ) -> bytes:
+        """Bytes covered by the initiator signature on the initial message.
+
+        Includes the initiator identity-agreement public key so a MitM cannot
+        swap it without breaking the signature. PQXDH also binds the PQ
+        ciphertext when present.
+        """
+        material = (
+            identity_agreement_data
+            + ephemeral_public
+            + signed_prekey_public
+            + b"".join(kem_ciphertexts)
+            + ratchet_public
+        )
+        if pq_ciphertext is not None:
+            material = material + pq_ciphertext
+        return material
+
+    def check_prekey_ids(
+        self,
+        our_signed_prekey: SignedPreKey,
+        our_one_time_prekey: OneTimePreKey | None = None,
+    ) -> None:
+        """Require SPK/OPK ids on this message to match local keys."""
+        if self.signed_prekey_id != our_signed_prekey.key_id:
+            raise InvalidKey("signed prekey id mismatch")
+        if our_one_time_prekey is not None:
+            if self.one_time_prekey_id != our_one_time_prekey.key_id:
+                raise InvalidKey("one-time prekey id mismatch")
+        elif self.one_time_prekey_id is not None:
+            raise InvalidKey("one-time prekey was used but not provided")
+
+    def verify_initial_signature(
+        self,
+        suite: CryptoSuite,
+        signed_prekey_public: bytes,
+        *,
+        pq_ciphertext: bytes | None = None,
+    ) -> None:
+        """Verify the initiator signature over :meth:`signed_material`."""
+        agreement_data = (
+            self.identity_agreement.data
+            if self.identity_agreement is not None
+            else b""
+        )
+        to_verify = self.signed_material(
+            identity_agreement_data=agreement_data,
+            ephemeral_public=self.ephemeral_public.data,
+            signed_prekey_public=signed_prekey_public,
+            kem_ciphertexts=self.kem_ciphertexts,
+            ratchet_public=self.ratchet_public or b"",
+            pq_ciphertext=pq_ciphertext,
+        )
+        try:
+            suite.signer.verify(
+                self.identity_signing,
+                to_verify,
+                self.signature,
+                hash_backend(suite.digest),
+            )
+        except InvalidSignature:
+            raise
 
     def encode_body(self) -> bytes:
         """Serialize fields after the constructor id."""
@@ -117,9 +194,15 @@ class InitialMessageX3DH(Constructor):
         if has_ratchet:
             ratchet_public, offset = cls.read_field(view, offset)
         fields = dict(
-            identity_signing=SigningPublicKey(identity_data, SigningAlg.from_id(identity_alg_id)),
+            identity_signing=SigningPublicKey(
+                identity_data,
+                SigningAlg.from_id(identity_alg_id),
+            ),
             identity_agreement=identity_agreement,
-            ephemeral_public=PublicKey(ephemeral_data, KeyExchangeAlg.from_id(ephemeral_alg_id)),
+            ephemeral_public=PublicKey(
+                ephemeral_data,
+                KeyExchangeAlg.from_id(ephemeral_alg_id),
+            ),
             kem_ciphertexts=tuple(ciphertexts),
             signed_prekey_id=signed_prekey_id,
             one_time_prekey_id=one_time_prekey_id,
@@ -169,6 +252,33 @@ class InitialMessagePQXDH(InitialMessageX3DH):
     def __post_init__(self) -> None:
         if not self.pq_ciphertext:
             raise ValueError("InitialMessagePQXDH requires pq_ciphertext")
+
+    def check_prekey_ids(
+        self,
+        our_signed_prekey: SignedPreKey,
+        our_one_time_prekey: OneTimePreKey | None = None,
+        our_pq_prekey_id: int | None = None,
+    ) -> None:
+        """Require SPK/OPK/PQ prekey ids to match local keys."""
+        super().check_prekey_ids(our_signed_prekey, our_one_time_prekey)
+        if our_pq_prekey_id is not None and self.pq_prekey_id != our_pq_prekey_id:
+            raise InvalidKey("PQ prekey id mismatch")
+
+    def verify_initial_signature(
+        self,
+        suite: CryptoSuite,
+        signed_prekey_public: bytes,
+        *,
+        pq_ciphertext: bytes | None = None,
+    ) -> None:
+        """Verify initiator signature, binding this message's PQ ciphertext."""
+        super().verify_initial_signature(
+            suite,
+            signed_prekey_public,
+            pq_ciphertext=(
+                self.pq_ciphertext if pq_ciphertext is None else pq_ciphertext
+            ),
+        )
 
     def encode_body(self) -> bytes:
         return (

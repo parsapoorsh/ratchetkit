@@ -104,7 +104,7 @@ class ExtendedTripleDiffieHellman(Handshake):
             if our_identity.agreement is not None
             else None
         )
-        to_sign = self.initial_signed_material(
+        to_sign = InitialMessageX3DH.signed_material(
             identity_agreement_data=(
                 identity_agreement.data if identity_agreement is not None else b""
             ),
@@ -147,14 +147,10 @@ class ExtendedTripleDiffieHellman(Handshake):
                 "X3DH cannot accept a PQXDH initial message; "
                 "use PostQuantumExtendedDiffieHellman"
             )
-        self.check_prekey_ids(
-            initial_message,
-            our_signed_prekey,
-            our_one_time_prekey,
-        )
+        initial_message.check_prekey_ids(our_signed_prekey, our_one_time_prekey)
         self.validate_initial_algorithms(initial_message)
-        self.verify_initial_signature(
-            initial_message,
+        initial_message.verify_initial_signature(
+            self.suite,
             our_signed_prekey.key_pair.public.data,
         )
 

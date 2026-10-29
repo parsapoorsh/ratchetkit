@@ -6,7 +6,7 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
-from ratchetkit.errors import InvalidKey, InvalidSignature
+from ratchetkit.errors import InvalidKey
 from ratchetkit.kdf import Kdf
 from ratchetkit.suite.registry import hash_backend
 
@@ -99,78 +99,6 @@ class Handshake(ABC):
                     f"initial message {label} algorithm {algorithm!r} "
                     f"does not match suite {expected!r}"
                 )
-
-    @staticmethod
-    def initial_signed_material(
-        identity_agreement_data: bytes,
-        ephemeral_public: bytes,
-        signed_prekey_public: bytes,
-        kem_ciphertexts: list[bytes],
-        ratchet_public: bytes,
-        pq_ciphertext: bytes | None = None,
-    ) -> bytes:
-        """Bytes covered by the initiator signature on the initial message.
-
-        Includes the initiator identity-agreement public key so a MitM cannot
-        swap it without breaking the signature. PQXDH also binds the PQ
-        ciphertext when present.
-        """
-        material = (
-            identity_agreement_data
-            + ephemeral_public
-            + signed_prekey_public
-            + b"".join(kem_ciphertexts)
-            + ratchet_public
-        )
-        if pq_ciphertext is not None:
-            material = material + pq_ciphertext
-        return material
-
-    def check_prekey_ids(
-        self,
-        initial_message: InitialMessageX3DH,
-        our_signed_prekey: SignedPreKey,
-        our_one_time_prekey: OneTimePreKey | None,
-    ) -> None:
-        """Require SPK/OPK ids on the initial message to match local keys."""
-        if initial_message.signed_prekey_id != our_signed_prekey.key_id:
-            raise InvalidKey("signed prekey id mismatch")
-        if our_one_time_prekey is not None:
-            if initial_message.one_time_prekey_id != our_one_time_prekey.key_id:
-                raise InvalidKey("one-time prekey id mismatch")
-        elif initial_message.one_time_prekey_id is not None:
-            raise InvalidKey("one-time prekey was used but not provided")
-
-    def verify_initial_signature(
-        self,
-        initial_message: InitialMessageX3DH,
-        signed_prekey_public: bytes,
-        *,
-        pq_ciphertext: bytes | None = None,
-    ) -> None:
-        """Verify the initiator signature over :meth:`initial_signed_material`."""
-        agreement_data = (
-            initial_message.identity_agreement.data
-            if initial_message.identity_agreement is not None
-            else b""
-        )
-        to_verify = self.initial_signed_material(
-            identity_agreement_data=agreement_data,
-            ephemeral_public=initial_message.ephemeral_public.data,
-            signed_prekey_public=signed_prekey_public,
-            kem_ciphertexts=list(initial_message.kem_ciphertexts),
-            ratchet_public=initial_message.ratchet_public or b"",
-            pq_ciphertext=pq_ciphertext,
-        )
-        try:
-            self.suite.signer.verify(
-                initial_message.identity_signing,
-                to_verify,
-                initial_message.signature,
-                hash_backend(self.suite.digest),
-            )
-        except InvalidSignature:
-            raise
 
     def sign_initial_material(
         self,
