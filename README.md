@@ -231,7 +231,10 @@ ratchetkit/
   session.py  # Session facade
 ```
 
-A Unix-socket Alice/Bob demo lives under `example/demo1/`.
+Examples under `example/`:
+
+- `demo1/` — Unix-socket Alice/Bob (X3DH/PQXDH + live Double/Triple Ratchet)
+- `demo2/` — session resume (`to_bytes` / `from_bytes`) + out-of-order delivery
 
 ## Tests
 
