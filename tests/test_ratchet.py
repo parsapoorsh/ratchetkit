@@ -23,6 +23,41 @@ def test_out_of_order(pair):
         assert bob.decrypt(messages[idx]) == f"m{idx}".encode()
 
 
+@pytest.mark.parametrize("drop_count", [1, 2, 4, 8])
+def test_missing_packets_alice_to_bob(pair, drop_count):
+    """Permanently drop N Alice→Bob packets; later messages still decrypt."""
+    kind, alice, bob, suite = pair
+    # Never deliver these — simulates loss of drop_count packets.
+    for i in range(drop_count):
+        alice.encrypt(f"a-lost-{i}".encode())
+    follow = [alice.encrypt(f"a-ok-{i}".encode()) for i in range(3)]
+    for i, msg in enumerate(follow):
+        assert bob.decrypt(msg) == f"a-ok-{i}".encode()
+    # Session stays usable both ways after the gap.
+    reply = bob.encrypt(b"after-gap-ack")
+    assert alice.decrypt(reply) == b"after-gap-ack"
+    nxt = alice.encrypt(b"after-gap")
+    assert bob.decrypt(nxt) == b"after-gap"
+
+
+@pytest.mark.parametrize("drop_count", [1, 2, 4, 8])
+def test_missing_packets_bob_to_alice(pair, drop_count):
+    """Permanently drop N Bob→Alice packets; later messages still decrypt."""
+    kind, alice, bob, suite = pair
+    # Establish Bob as sender on a fresh chain after Alice's first message.
+    seed = bob.encrypt(b"seed")
+    assert alice.decrypt(seed) == b"seed"
+    for i in range(drop_count):
+        bob.encrypt(f"b-lost-{i}".encode())
+    follow = [bob.encrypt(f"b-ok-{i}".encode()) for i in range(3)]
+    for i, msg in enumerate(follow):
+        assert alice.decrypt(msg) == f"b-ok-{i}".encode()
+    nxt = alice.encrypt(b"after-gap")
+    assert bob.decrypt(nxt) == b"after-gap"
+    reply = bob.encrypt(b"after-gap-ack")
+    assert alice.decrypt(reply) == b"after-gap-ack"
+
+
 def test_duplicate_rejected(pair):
     kind, alice, bob, suite = pair
     m = alice.encrypt(b"once")
