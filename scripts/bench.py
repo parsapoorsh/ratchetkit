@@ -25,11 +25,12 @@ from ratchetkit.keys.prekey import OneTimePreKey, SignedPreKey
 from ratchetkit.session import Session
 from ratchetkit.suite import (
     CipherAlg,
-    CryptoSuiteDoubleRatchet,
-    CryptoSuiteTripleRatchet,
     HashAlg,
     KeyExchangeAlg,
+    SigningAlg,
 )
+from ratchetkit.suite.double import CryptoSuiteDoubleRatchet
+from ratchetkit.suite.triple import CryptoSuiteTripleRatchet
 
 
 def double_suite():
@@ -37,6 +38,7 @@ def double_suite():
         digest=HashAlg.SHA256,
         cipher=CipherAlg.AES256,
         key_exchange=KeyExchangeAlg.X25519,
+        signing=SigningAlg.ED25519,
     )
 
 
@@ -45,6 +47,7 @@ def triple_suite():
         digest=HashAlg.SHA256,
         cipher=CipherAlg.AES256,
         key_exchange=KeyExchangeAlg.X25519,
+        signing=SigningAlg.ED25519,
         pq_key_exchange=KeyExchangeAlg.MLKEM768,
         scka_chunks=8,
     )
