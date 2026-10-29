@@ -79,6 +79,7 @@ class KeyPairBase:
     """Private key material; public half is derived from the matching backend."""
 
     private: bytes
+    algorithm: KeyExchangeAlg | SigningAlg
 
     def encode_body(self) -> bytes:
         return encode_u32(int(self.algorithm)) + encode_bytes(self.private)
