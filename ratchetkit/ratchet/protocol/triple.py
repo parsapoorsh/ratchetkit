@@ -125,7 +125,7 @@ class TripleRatchet(Ratchet):
             sk,
             size * 2,
             salt=bytes(size),
-            info=TR_INFO_SPLIT + bytes([int(KdfLabel.TR_SPLIT)]),
+            info=TR_INFO_SPLIT + KdfLabel.TR_SPLIT,
         )
         return material[:size], material[size:]
 
@@ -136,7 +136,7 @@ class TripleRatchet(Ratchet):
             ec_mk,
             size,
             salt=pq_mk,
-            info=TR_INFO_HYBRID + bytes([int(KdfLabel.TR_HYBRID)]),
+            info=TR_INFO_HYBRID + KdfLabel.TR_HYBRID,
         )
 
     def encrypt(

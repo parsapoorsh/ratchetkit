@@ -220,7 +220,7 @@ class SparsePostQuantumRatchet:
             sk,
             size * 3,
             salt=bytes(size),
-            info=SPQR_INFO_INIT + bytes([int(KdfLabel.SPQR_INIT)]),
+            info=SPQR_INFO_INIT + KdfLabel.SPQR_INIT,
         )
         return material[:size], material[size:size * 2], material[size * 2:]
 
@@ -230,7 +230,7 @@ class SparsePostQuantumRatchet:
             scka_out,
             size * 3,
             salt=self.root_key,
-            info=SPQR_INFO_EPOCH + bytes([int(KdfLabel.SPQR_EPOCH)]),
+            info=SPQR_INFO_EPOCH + KdfLabel.SPQR_EPOCH,
         )
         return material[:size], material[size:size * 2], material[size * 2:]
 

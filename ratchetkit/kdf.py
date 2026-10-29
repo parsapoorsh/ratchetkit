@@ -5,7 +5,7 @@ from __future__ import annotations
 import hmac
 from typing import TYPE_CHECKING
 
-from ratchetkit.suite import HashAlg, KdfLabel
+from ratchetkit.suite import HashAlg
 
 if TYPE_CHECKING:
     from ratchetkit.algorithms.hash.base import HashAlgorithm
@@ -29,21 +29,14 @@ class Kdf:
         ikm: bytes,
         length: int,
         salt: bytes | None = None,
-        info: bytes | KdfLabel | int = b"",
+        info: bytes = b"",
     ) -> bytes:
         """HKDF-Extract + Expand (RFC 5869).
 
-        ``info`` may be raw bytes, a :class:`KdfLabel`, or a single int byte.
+        ``info`` is raw bytes (use :class:`~ratchetkit.suite.KdfLabel` constants).
         """
         factory = self.hash_cls.constructor()
         hash_len = self.hash_cls.digest_size
-
-        if isinstance(info, KdfLabel):
-            info_bytes = bytes([int(info)])
-        elif isinstance(info, int):
-            info_bytes = bytes([info & 0xFF])
-        else:
-            info_bytes = info
 
         if salt is None:
             salt = bytes(hash_len)
@@ -61,7 +54,7 @@ class Kdf:
         while len(okm) < length:
             previous = hmac.new(
                 prk,
-                previous + info_bytes + bytes([counter]),
+                previous + info + bytes([counter]),
                 factory,
             ).digest()
             okm.extend(previous)

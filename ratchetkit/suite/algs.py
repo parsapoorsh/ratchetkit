@@ -122,17 +122,17 @@ class KeyExchangeAlg(Alg):
         return KEX_IMPL[self]
 
 
-class KdfLabel(IntEnum):
+class KdfLabel:
     """One-byte HKDF info values for domain separation."""
 
-    X3DH = 0x01
-    ROOT_CHAIN = 0x02  # root-key -> (root, chain) ratchet step
-    MESSAGE_KEYS = 0x03  # chain-key seed -> cipher/mac/iv
-    SPQR_INIT = 0x04  # Sparse PQ Ratchet chain start
-    SPQR_EPOCH = 0x05  # Sparse PQ Ratchet add epoch
-    TR_SPLIT = 0x06  # Triple Ratchet SK -> (SKec, SKscka)
-    TR_HYBRID = 0x07  # Triple Ratchet KDF_HYBRID(ec_mk, pq_mk)
-    PQXDH = 0x08  # Post-Quantum Extended Diffie-Hellman handshake
+    X3DH = b"\x01"
+    ROOT_CHAIN = b"\x02"  # root-key -> (root, chain) ratchet step
+    MESSAGE_KEYS = b"\x03"  # chain-key seed -> cipher/mac/iv
+    SPQR_INIT = b"\x04"  # Sparse PQ Ratchet chain start
+    SPQR_EPOCH = b"\x05"  # Sparse PQ Ratchet add epoch
+    TR_SPLIT = b"\x06"  # Triple Ratchet SK -> (SKec, SKscka)
+    TR_HYBRID = b"\x07"  # Triple Ratchet KDF_HYBRID(ec_mk, pq_mk)
+    PQXDH = b"\x08"  # Post-Quantum Extended Diffie-Hellman handshake
 
 
 class ChainKeySeed:
