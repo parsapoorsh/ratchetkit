@@ -1,16 +1,22 @@
-"""Ratchet engine ABC: encrypt / decrypt / serialize / trial-clone."""
+"""Ratchet engine ABC: encrypt / decrypt / serialize."""
 from __future__ import annotations
 
 
 from abc import ABC, abstractmethod
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Generic, TypeVar
+
+from ratchetkit.ratchet.message.base import RatchetMessage
 
 if TYPE_CHECKING:
-    from ratchetkit.ratchet.message.base import RatchetMessage
+    from typing import Self
+
     from ratchetkit.suite.double import CryptoSuiteDoubleRatchet as CryptoSuite
 
 
-class Ratchet(ABC):
+M = TypeVar("M", bound=RatchetMessage)
+
+
+class Ratchet(ABC, Generic[M]):
     """Stateful ratchet half used by :class:`~ratchetkit.session.Session`."""
 
     suite: CryptoSuite
@@ -20,13 +26,13 @@ class Ratchet(ABC):
         self,
         plaintext: bytes,
         associated_data: bytes = b"",
-    ) -> RatchetMessage:
+    ) -> M:
         """Encrypt one plaintext; advances send-side ratchet state."""
 
     @abstractmethod
     def decrypt(
         self,
-        message: RatchetMessage,
+        message: M,
         associated_data: bytes = b"",
     ) -> bytes:
         """Decrypt one message; commits state only after MAC success."""
@@ -37,13 +43,5 @@ class Ratchet(ABC):
 
     @classmethod
     @abstractmethod
-    def from_bytes(cls, data: bytes, suite: CryptoSuite) -> Ratchet:
+    def from_bytes(cls, data: bytes, suite: CryptoSuite) -> Self:
         """Deserialize ratchet state for this concrete type."""
-
-    @abstractmethod
-    def clone(self) -> Ratchet:
-        """Trial-decrypt copy of mutable state (no deepcopy)."""
-
-    @abstractmethod
-    def adopt(self, other: Ratchet) -> None:
-        """Replace live state with a successful trial-decrypt clone."""

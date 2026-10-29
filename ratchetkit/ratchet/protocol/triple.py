@@ -24,14 +24,14 @@ from ratchetkit.ratchet.protocol.base import Ratchet
 from ratchetkit.ratchet.protocol.double import DoubleRatchet
 from ratchetkit.ratchet.spqr import SparsePostQuantumRatchet
 from ratchetkit.suite import KdfLabel
+from ratchetkit.suite.triple import CryptoSuiteTripleRatchet
 
 if TYPE_CHECKING:
     from ratchetkit.algorithms.kem.base import KemBackend
     from ratchetkit.suite.double import CryptoSuiteDoubleRatchet as CryptoSuite
-    from ratchetkit.suite.triple import CryptoSuiteTripleRatchet
 
 
-class TripleRatchet(Ratchet, Constructor):
+class TripleRatchet(Ratchet[TripleRatchetMessage], Constructor):
     """Hybrid secure messaging: EC Double Ratchet ∥ Sparse PQ Ratchet.
 
     Owns composition: split handshake SK, advance the EC leaf and SPQR leaf,
@@ -283,8 +283,10 @@ class TripleRatchet(Ratchet, Constructor):
     def from_bytes(
         cls,
         data: bytes,
-        suite: CryptoSuiteTripleRatchet,
+        suite: CryptoSuite,
     ) -> TripleRatchet:
+        if not isinstance(suite, CryptoSuiteTripleRatchet):
+            raise TypeError("TripleRatchet.from_bytes requires CryptoSuiteTripleRatchet")
         offset = cls.constructor_expect(data)
         ec_blob, offset = read_bytes(data, offset)
         spqr_blob, offset = read_bytes(data, offset)

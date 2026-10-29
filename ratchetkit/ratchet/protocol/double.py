@@ -31,7 +31,7 @@ if TYPE_CHECKING:
     from ratchetkit.suite.double import CryptoSuiteDoubleRatchet as CryptoSuite
 
 
-class DoubleRatchet(Ratchet, Constructor):
+class DoubleRatchet(Ratchet[DoubleRatchetMessage], Constructor):
     """Stateful Double Ratchet session half.
 
     Decrypt mutates state only after MAC verification succeeds, matching
