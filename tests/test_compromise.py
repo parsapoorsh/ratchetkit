@@ -22,9 +22,7 @@ import pytest
 from ratchetkit.errors import DuplicateMessage, InvalidMessage
 from ratchetkit.kdf import Kdf
 from ratchetkit.keys.chain import ChainKey
-from ratchetkit.keys.identity import IdentityKeyPair
 from ratchetkit.keys.message import MessageKeys
-from ratchetkit.keys.prekey import OneTimePreKey, SignedPreKey
 from ratchetkit.keys.root import RootKey
 from ratchetkit.ratchet.message import (
     DoubleRatchetMessage,
@@ -35,72 +33,8 @@ from ratchetkit.ratchet.protocol.double import DoubleRatchet
 from ratchetkit.ratchet.protocol.triple import TripleRatchet
 from ratchetkit.ratchet.spqr import SparsePostQuantumRatchet
 from ratchetkit.session import Session
-from ratchetkit.suite import (
-    CipherAlg,
-    CryptoSuite,
-    CryptoSuiteDoubleRatchet,
-    CryptoSuiteTripleRatchet,
-    HashAlg,
-    KeyExchangeAlg,
-)
-
-
-SUITE_KINDS = ("double", "triple")
-
-
-def make_suite(kind: str) -> CryptoSuite:
-    if kind == "double":
-        return CryptoSuiteDoubleRatchet(
-            digest=HashAlg.SHA256,
-            cipher=CipherAlg.AES256,
-            key_exchange=KeyExchangeAlg.X25519,
-        )
-    if kind == "triple":
-        return CryptoSuiteTripleRatchet(
-            digest=HashAlg.SHA256,
-            cipher=CipherAlg.AES256,
-            key_exchange=KeyExchangeAlg.X25519,
-            pq_key_exchange=KeyExchangeAlg.MLKEM768,
-            scka_chunks=2,
-        )
-    raise ValueError(f"unknown suite kind: {kind!r}")
-
-
-def open_pair(kind: str, first_plain: bytes = b"setup"):
-    suite = make_suite(kind)
-    alice_id = IdentityKeyPair.generate(suite)
-    bob_id = IdentityKeyPair.generate(suite)
-    spk = SignedPreKey.generate(1, bob_id)
-    opk = OneTimePreKey.generate(1, suite)
-    if kind == "triple":
-        assert isinstance(suite, CryptoSuiteTripleRatchet)
-        pq = suite.generate_pq_prekey(1, bob_id)
-        bundle = suite.create_bundle(bob_id, spk, opk, pq)
-        alice, initial = Session.initiate(alice_id, bundle)
-        first = alice.encrypt(first_plain)
-        bob, plain = Session.accept(
-            bob_id,
-            spk,
-            initial,
-            first,
-            opk,
-            our_pq_prekey=pq,
-        )
-    else:
-        bundle = suite.create_bundle(bob_id, spk, opk)
-        alice, initial = Session.initiate(alice_id, bundle)
-        first = alice.encrypt(first_plain)
-        bob, plain = Session.accept(bob_id, spk, initial, first, opk)
-    assert plain == first_plain
-    return alice, bob, suite
-
-
-@pytest.fixture(params=SUITE_KINDS)
-def pair(request):
-    """Alice/Bob session pair for each suite kind."""
-    kind = request.param
-    alice, bob, suite = open_pair(kind)
-    return kind, alice, bob, suite
+from ratchetkit.suite import CryptoSuite, CryptoSuiteTripleRatchet
+from tests.helpers import ec_ratchet
 
 
 def freeze(session: Session) -> Session:
@@ -113,15 +47,6 @@ def try_decrypt(session: Session, message: RatchetMessage) -> bytes | None:
         return session.decrypt(message)
     except (InvalidMessage, DuplicateMessage, TypeError):
         return None
-
-
-def ec_ratchet(session: Session) -> DoubleRatchet:
-    """Classical Double Ratchet half (the whole ratchet for double suites)."""
-    ratchet = session.ratchet
-    if isinstance(ratchet, TripleRatchet):
-        return ratchet.ec
-    assert isinstance(ratchet, DoubleRatchet)
-    return ratchet
 
 
 def chain_message_keys(chain: ChainKey, count: int) -> list[MessageKeys]:
