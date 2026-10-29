@@ -29,37 +29,6 @@ class ConstructorId(IntEnum):
     SCKA = 0x524B0026
 
 
-def pack_constructor(constructor_id: ConstructorId | int) -> bytes:
-    return struct.pack(">I", int(constructor_id))
-
-
-def read_constructor(
-    data: bytes | memoryview,
-    offset: int = 0,
-) -> tuple[ConstructorId, int]:
-    if offset + CONSTRUCTOR_SIZE > len(data):
-        raise SerializationError("truncated constructor id")
-    raw = struct.unpack_from(">I", data, offset)[0]
-    try:
-        return ConstructorId(raw), offset + CONSTRUCTOR_SIZE
-    except ValueError as exc:
-        raise SerializationError(f"unknown constructor id 0x{raw:08X}") from exc
-
-
-def expect_constructor(
-    data: bytes | memoryview,
-    expected: ConstructorId,
-    offset: int = 0,
-) -> int:
-    """Read constructor at offset; raise if it is not ``expected``."""
-    got, next_offset = read_constructor(data, offset)
-    if got is not expected:
-        raise SerializationError(
-            f"expected constructor 0x{int(expected):08X}, got 0x{int(got):08X}"
-        )
-    return next_offset
-
-
 class Constructor:
     """Base for types that open their wire blob with a fixed constructor id.
 
@@ -75,7 +44,7 @@ class Constructor:
     @classmethod
     def constructor_pack(cls) -> bytes:
         """Encode this type's constructor id."""
-        return pack_constructor(cls.CONSTRUCTOR_ID)
+        return struct.pack(">I", int(cls.CONSTRUCTOR_ID))
 
     @classmethod
     def constructor_read(
@@ -84,7 +53,15 @@ class Constructor:
         offset: int = 0,
     ) -> tuple[ConstructorId, int]:
         """Read any constructor id at ``offset`` (does not check type)."""
-        return read_constructor(data, offset)
+        if offset + CONSTRUCTOR_SIZE > len(data):
+            raise SerializationError("truncated constructor id")
+        raw = struct.unpack_from(">I", data, offset)[0]
+        try:
+            return ConstructorId(raw), offset + CONSTRUCTOR_SIZE
+        except ValueError as exc:
+            raise SerializationError(
+                f"unknown constructor id 0x{raw:08X}"
+            ) from exc
 
     @classmethod
     def constructor_expect(
@@ -93,7 +70,13 @@ class Constructor:
         offset: int = 0,
     ) -> int:
         """Read constructor at ``offset``; raise if it is not ``CONSTRUCTOR_ID``."""
-        return expect_constructor(data, cls.CONSTRUCTOR_ID, offset)
+        got, next_offset = cls.constructor_read(data, offset)
+        if got is not cls.CONSTRUCTOR_ID:
+            raise SerializationError(
+                f"expected constructor 0x{int(cls.CONSTRUCTOR_ID):08X}, "
+                f"got 0x{int(got):08X}"
+            )
+        return next_offset
 
 
 def encode_bytes(value: bytes) -> bytes:

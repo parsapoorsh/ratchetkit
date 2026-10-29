@@ -13,8 +13,6 @@ from ratchetkit.packing import (
     encode_u32,
     read_u32,
     ConstructorId,
-    expect_constructor,
-    pack_constructor,
 )
 
 

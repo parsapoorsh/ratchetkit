@@ -7,7 +7,7 @@ import struct
 import time
 from pathlib import Path
 
-from ratchetkit.packing import ConstructorId, read_constructor
+from ratchetkit.packing import Constructor, ConstructorId
 from ratchetkit.ratchet import (
     DoubleRatchet,
     DoubleRatchetMessage,
@@ -96,7 +96,7 @@ class Link:
     def expect(self, constructor: ConstructorId) -> bytes:
         """Read one frame whose leading constructor matches ``constructor``."""
         data = self.recv()
-        got, _ = read_constructor(data, 0)
+        got, _ = Constructor.constructor_read(data, 0)
         if got is not constructor:
             raise RuntimeError(
                 f"[{self.name}] expected {constructor.name}, got {got.name}"

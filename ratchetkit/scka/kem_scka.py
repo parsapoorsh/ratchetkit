@@ -25,8 +25,6 @@ from ratchetkit.packing import (
     encode_bytes,
     encode_optional_bytes,
     encode_u32,
-    expect_constructor,
-    pack_constructor,
     read_bool,
     read_bytes,
     read_optional_bytes,

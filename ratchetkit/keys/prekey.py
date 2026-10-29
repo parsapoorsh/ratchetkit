@@ -17,8 +17,6 @@ from ratchetkit.packing import (
     Constructor,
     ConstructorId,
     encode_u32,
-    expect_constructor,
-    pack_constructor,
     read_u32,
 )
 from ratchetkit.suite.algs import KeyExchangeAlg, SigningAlg

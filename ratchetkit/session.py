@@ -15,10 +15,7 @@ from ratchetkit.packing import (
     Constructor,
     ConstructorId,
     encode_bytes,
-    expect_constructor,
-    pack_constructor,
     read_bytes,
-    read_constructor,
 )
 from ratchetkit.ratchet.message import (
     DoubleRatchetMessage,
@@ -212,7 +209,7 @@ class Session(Constructor):
         if offset != len(data):
             raise SerializationError("trailing bytes in session")
 
-        suite_id, _ = read_constructor(suite_blob, 0)
+        suite_id, _ = Constructor.constructor_read(suite_blob, 0)
         if suite_id is ConstructorId.SUITE_TRIPLE:
             suite: CryptoSuite = CryptoSuiteTripleRatchet.from_bytes(suite_blob)
             if not isinstance(suite, CryptoSuiteTripleRatchet):

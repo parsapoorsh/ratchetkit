@@ -15,8 +15,6 @@ from ratchetkit.packing import (
     Constructor,
     ConstructorId,
     encode_bytes,
-    expect_constructor,
-    pack_constructor,
     read_bytes,
 )
 from ratchetkit.ratchet.limits import RatchetLimits
