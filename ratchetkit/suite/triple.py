@@ -19,7 +19,6 @@ from ratchetkit.suite.algs import (
     CipherAlg,
     HashAlg,
     KeyExchangeAlg,
-    alg_from_id,
 )
 from ratchetkit.suite.double import CryptoSuiteDoubleRatchet
 
@@ -113,10 +112,10 @@ class CryptoSuiteTripleRatchet(CryptoSuiteDoubleRatchet):
         if offset != len(data):
             raise SerializationError("trailing bytes in triple suite")
         return cls(
-            digest=alg_from_id(HashAlg, digest_id),
-            cipher=alg_from_id(CipherAlg, cipher_id),
-            key_exchange=alg_from_id(KeyExchangeAlg, kx_id),
+            digest=HashAlg.from_id(digest_id),
+            cipher=CipherAlg.from_id(cipher_id),
+            key_exchange=KeyExchangeAlg.from_id(kx_id),
             tag_size=tag_size,
-            pq_key_exchange=alg_from_id(KeyExchangeAlg, pq_id),
+            pq_key_exchange=KeyExchangeAlg.from_id(pq_id),
             scka_chunks=chunks,
         )

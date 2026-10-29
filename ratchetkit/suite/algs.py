@@ -30,7 +30,21 @@ from ratchetkit.algorithms.kem.x448 import X448
 from ratchetkit.errors import SerializationError
 
 
-class HashAlg(IntEnum):
+class Alg(IntEnum):
+    """Base for suite algorithm enums dumped as permanent ``u32`` ids."""
+
+    @classmethod
+    def from_id(cls, alg_id: int):
+        """Resolve a wire ``u32`` id to a member of this enum."""
+        try:
+            return cls(alg_id)
+        except ValueError as exc:
+            raise SerializationError(
+                f"unknown {cls.__name__} id {alg_id}"
+            ) from exc
+
+
+class HashAlg(Alg):
     """Hash algorithm for HKDF, HMAC, and signature digests."""
 
     SHA256 = 1
@@ -52,7 +66,7 @@ class HashAlg(IntEnum):
         return HASH_IMPL[self]
 
 
-class CipherAlg(IntEnum):
+class CipherAlg(Alg):
     """Symmetric cipher (key/nonce sizes live on the class)."""
 
     AES128 = 1
@@ -74,7 +88,7 @@ class CipherAlg(IntEnum):
         return CIPHER_IMPL[self]
 
 
-class KeyExchangeAlg(IntEnum):
+class KeyExchangeAlg(Alg):
     """KEM-capable asymmetric algorithm."""
 
     X25519 = 1
@@ -103,16 +117,6 @@ class KeyExchangeAlg(IntEnum):
             KeyExchangeAlg.MLKEM1024: Mlkem1024,
         }
         return KEX_IMPL[self]
-
-
-def alg_from_id(enum_cls: type[IntEnum], alg_id: int):
-    """Resolve a wire ``u32`` id to an algorithm enum member."""
-    try:
-        return enum_cls(alg_id)
-    except ValueError as exc:
-        raise SerializationError(
-            f"unknown {enum_cls.__name__} id {alg_id}"
-        ) from exc
 
 
 class KdfLabel(IntEnum):
