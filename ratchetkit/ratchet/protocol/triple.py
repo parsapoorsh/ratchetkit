@@ -7,7 +7,7 @@ from ratchetkit.suite.registry import hash_backend
 import hmac
 from typing import TYPE_CHECKING
 
-from ratchetkit.errors import InvalidMessage, SerializationError
+from ratchetkit.errors import DuplicateMessage, InvalidKey, InvalidMessage, SerializationError
 from ratchetkit.kdf import Kdf
 from ratchetkit.keys.keypair import KeyPair, PublicKey
 from ratchetkit.keys.message import MessageKeys
@@ -17,8 +17,9 @@ from ratchetkit.packing import (
     encode_bytes,
     read_bytes,
 )
+from ratchetkit.ratchet.header import RatchetHeader
 from ratchetkit.ratchet.limits import RatchetLimits
-from ratchetkit.ratchet.message import TripleRatchetMessage
+from ratchetkit.ratchet.message import DoubleRatchetMessage, TripleRatchetMessage
 from ratchetkit.ratchet.protocol.base import Ratchet
 from ratchetkit.ratchet.protocol.double import DoubleRatchet
 from ratchetkit.ratchet.spqr import SparsePostQuantumRatchet
@@ -37,9 +38,9 @@ TR_INFO_HYBRID = b"TR v1 hybrid mk"
 class TripleRatchet(Ratchet, Constructor):
     """Hybrid secure messaging: EC Double Ratchet ∥ Sparse PQ Ratchet.
 
-    Owns composition only: split handshake SK, drive both leaf ratchets via
-    their ``send_key`` / ``receive_key``, then KDF_HYBRID before AEAD
-    (Signal Double Ratchet specification §6 / ePrint 2025/078 hybrid idea).
+    Owns composition: split handshake SK, advance the EC leaf and SPQR leaf,
+    then KDF_HYBRID before AEAD (Signal Double Ratchet specification §6 /
+    ePrint 2025/078 hybrid idea).
     """
 
     def __init__(
@@ -143,7 +144,22 @@ class TripleRatchet(Ratchet, Constructor):
         plaintext: bytes,
         associated_data: bytes = b"",
     ) -> TripleRatchetMessage:
-        ec_keys, ec_header = self.ec.send_key()
+        ec = self.ec
+        if ec.sender_chain is None:
+            ec.ensure_sender_chain()
+        assert ec.sender_chain is not None
+        assert ec.sender_header is not None
+        chain = ec.sender_chain.chain_key
+        ec_keys = chain.message_keys()
+        ec.sender_chain.chain_key = chain.next_chain_key()
+        ec_header = DoubleRatchetMessage(
+            ratchet_public=ec.sender_header,
+            previous_counter=ec.previous_counter,
+            counter=ec_keys.counter,
+            ciphertext=b"",
+            mac=b"",
+        )
+
         pq_keys, spqr_header = self.spqr.send_key()
         seed = self.hybrid_message_key(ec_keys.cipher_key, pq_keys.cipher_key)
         hybrid = MessageKeys.derive(seed, ec_keys.counter, self.suite)
@@ -177,7 +193,40 @@ class TripleRatchet(Ratchet, Constructor):
         message: TripleRatchetMessage,
         associated_data: bytes = b"",
     ) -> bytes:
-        ec_keys = self.ec.receive_key(message.ec_message)
+        ec_message = message.ec_message
+        try:
+            chain_id = RatchetHeader.chain_id(ec_message.ratchet_public, self.ec.is_kem)
+        except Exception as exc:
+            raise InvalidMessage("malformed ratchet header") from exc
+
+        skipped = self.ec.skipped.peek(chain_id, ec_message.counter)
+        if skipped is not None:
+            self.ec.skipped.take(chain_id, ec_message.counter)
+            ec_keys = skipped
+        else:
+            chain = self.ec.find_receiver_chain(chain_id)
+            if chain is None:
+                try:
+                    chain = self.ec.ratchet_step(
+                        ec_message.ratchet_public,
+                        ec_message.previous_counter,
+                    )
+                except InvalidKey as exc:
+                    raise InvalidMessage(
+                        "ratchet step rejected remote key material"
+                    ) from exc
+
+            if ec_message.counter < chain.chain_key.index:
+                raise DuplicateMessage(chain.chain_key.index, ec_message.counter)
+
+            chain.chain_key = self.ec.skipped.skip_in_chain(
+                chain_id,
+                chain.chain_key,
+                ec_message.counter,
+            )
+            ec_keys = chain.chain_key.message_keys()
+            chain.chain_key = chain.chain_key.next_chain_key()
+
         pq_keys = self.spqr.receive_key(message.spqr_header)
         seed = self.hybrid_message_key(ec_keys.cipher_key, pq_keys.cipher_key)
         hybrid = MessageKeys.derive(seed, ec_keys.counter, self.suite)

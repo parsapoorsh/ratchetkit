@@ -140,12 +140,11 @@ class DoubleRatchet(Ratchet, Constructor):
             their_kem_public=their_kem,
         )
 
-    def send_key(self) -> tuple[MessageKeys, DoubleRatchetMessage]:
-        """Advance the send chain; return message keys and a header shell.
-
-        Ciphertext and MAC on the returned message are empty. Callers that own
-        AEAD (this ratchet, or Triple hybrid) fill them after key combination.
-        """
+    def encrypt(
+        self,
+        plaintext: bytes,
+        associated_data: bytes = b"",
+    ) -> DoubleRatchetMessage:
         if self.sender_chain is None:
             self.ensure_sender_chain()
 
@@ -153,69 +152,21 @@ class DoubleRatchet(Ratchet, Constructor):
         assert self.sender_header is not None
         chain = self.sender_chain.chain_key
         keys = chain.message_keys()
-        self.sender_chain.chain_key = chain.next_chain_key()
-        header = DoubleRatchetMessage(
+        ciphertext = keys.encrypt(plaintext, self.suite)
+        message = DoubleRatchetMessage(
             ratchet_public=self.sender_header,
             previous_counter=self.previous_counter,
             counter=keys.counter,
-            ciphertext=b"",
+            ciphertext=ciphertext,
             mac=b"",
         )
-        return keys, header
-
-    def receive_key(self, message: DoubleRatchetMessage) -> MessageKeys:
-        """Advance receive state for ``message``; return its message keys.
-
-        Does not verify MAC or decrypt. Standalone decrypt does both after this;
-        Triple hybrid verifies a combined MAC instead.
-        """
-        try:
-            chain_id = RatchetHeader.chain_id(message.ratchet_public, self.is_kem)
-        except Exception as exc:
-            raise InvalidMessage("malformed ratchet header") from exc
-
-        skipped = self.skipped.peek(chain_id, message.counter)
-        if skipped is not None:
-            self.skipped.take(chain_id, message.counter)
-            return skipped
-
-        chain = self.find_receiver_chain(chain_id)
-        if chain is None:
-            try:
-                chain = self.ratchet_step(
-                    message.ratchet_public,
-                    message.previous_counter,
-                )
-            except InvalidKey as exc:
-                # Bad remote public / failed DH must not leak as a raw crypto error.
-                raise InvalidMessage("ratchet step rejected remote key material") from exc
-
-        if message.counter < chain.chain_key.index:
-            raise DuplicateMessage(chain.chain_key.index, message.counter)
-
-        chain.chain_key = self.skipped.skip_in_chain(
-            chain_id,
-            chain.chain_key,
-            message.counter,
-        )
-        keys = chain.chain_key.message_keys()
-        chain.chain_key = chain.chain_key.next_chain_key()
-        return keys
-
-    def encrypt(
-        self,
-        plaintext: bytes,
-        associated_data: bytes = b"",
-    ) -> DoubleRatchetMessage:
-        keys, message = self.send_key()
-        ciphertext = keys.encrypt(plaintext, self.suite)
-        message.ciphertext = ciphertext
         message.mac = self.compute_mac(
             keys,
             message.header_bytes(),
             associated_data,
             ciphertext,
         )
+        self.sender_chain.chain_key = chain.next_chain_key()
         return message
 
     def decrypt(
@@ -239,9 +190,41 @@ class DoubleRatchet(Ratchet, Constructor):
         associated_data: bytes = b"",
     ) -> bytes:
         """Mutating decrypt for a trial clone only. Prefer :meth:`decrypt`."""
-        keys = self.receive_key(message)
+        try:
+            chain_id = RatchetHeader.chain_id(message.ratchet_public, self.is_kem)
+        except Exception as exc:
+            raise InvalidMessage("malformed ratchet header") from exc
+
+        skipped = self.skipped.peek(chain_id, message.counter)
+        if skipped is not None:
+            self.verify_mac(skipped, message, associated_data)
+            self.skipped.take(chain_id, message.counter)
+            return skipped.decrypt(message.ciphertext, self.suite)
+
+        chain = self.find_receiver_chain(chain_id)
+        if chain is None:
+            try:
+                chain = self.ratchet_step(
+                    message.ratchet_public,
+                    message.previous_counter,
+                )
+            except InvalidKey as exc:
+                # Bad remote public / failed DH must not leak as a raw crypto error.
+                raise InvalidMessage("ratchet step rejected remote key material") from exc
+
+        if message.counter < chain.chain_key.index:
+            raise DuplicateMessage(chain.chain_key.index, message.counter)
+
+        chain.chain_key = self.skipped.skip_in_chain(
+            chain_id,
+            chain.chain_key,
+            message.counter,
+        )
+        keys = chain.chain_key.message_keys()
         self.verify_mac(keys, message, associated_data)
-        return keys.decrypt(message.ciphertext, self.suite)
+        plaintext = keys.decrypt(message.ciphertext, self.suite)
+        chain.chain_key = chain.chain_key.next_chain_key()
+        return plaintext
 
     def clone(self) -> DoubleRatchet:
         """Trial-decrypt copy via ``__init__`` (no deepcopy).
