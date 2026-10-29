@@ -30,7 +30,7 @@ from ratchetkit.suite import (
     CryptoSuiteDoubleRatchet,
     CryptoSuiteTripleRatchet,
 )
-from ratchetkit.handshake.message import InitialMessage
+from ratchetkit.handshake.message import InitialMessageX3DH
 
 
 class Session:
@@ -57,7 +57,7 @@ class Session:
         cls,
         our_identity: IdentityKeyPair,
         their_bundle: PreKeyBundle,
-    ) -> tuple[Session, InitialMessage]:
+    ) -> tuple[Session, InitialMessageX3DH]:
         """Alice: suite handshake + open a Double or Triple Ratchet."""
         suite = our_identity.require_suite()
         result = suite.handshake().initiate(our_identity, their_bundle)
@@ -95,7 +95,7 @@ class Session:
         cls,
         our_identity: IdentityKeyPair,
         our_signed_prekey: SignedPreKey,
-        initial: InitialMessage,
+        initial: InitialMessageX3DH,
         message: RatchetMessage,
         our_one_time_prekey: OneTimePreKey | None = None,
         associated_data: bytes = b"",

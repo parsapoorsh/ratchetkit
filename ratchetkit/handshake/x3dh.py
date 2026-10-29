@@ -20,7 +20,7 @@ from ratchetkit.keys.prekey import (
     SignedPreKey,
 )
 from ratchetkit.suite import KdfLabel
-from ratchetkit.handshake.message import InitialMessage
+from ratchetkit.handshake.message import InitialMessagePQXDH, InitialMessageX3DH
 
 if TYPE_CHECKING:
     from ratchetkit.suite import CryptoSuite
@@ -29,7 +29,7 @@ if TYPE_CHECKING:
 @dataclass
 class ExtendedTripleDiffieHellmanResult:
     shared_secret: bytes
-    initial_message: InitialMessage
+    initial_message: InitialMessageX3DH
     # Initiator-side ratchet key used to seed the Double Ratchet sending chain.
     ratchet_key: KeyPair | None = None
 
@@ -122,7 +122,7 @@ class ExtendedTripleDiffieHellman:
             self.suite.digest.impl,
         )
 
-        message = InitialMessage(
+        message = InitialMessageX3DH(
             identity_signing=our_identity.signing.public,
             identity_agreement=identity_agreement,
             ephemeral_public=ephemeral.public,
@@ -142,14 +142,14 @@ class ExtendedTripleDiffieHellman:
         self,
         our_identity: IdentityKeyPair,
         our_signed_prekey: SignedPreKey,
-        initial_message: InitialMessage,
+        initial_message: InitialMessageX3DH,
         our_one_time_prekey: OneTimePreKey | None = None,
         our_pq_prekey: SignedPqPreKey | None = None,
     ) -> bytes:
         # Same signature as PQXDH.respond so Session.accept has one call path.
         if our_pq_prekey is not None:
             raise InvalidKey("X3DH does not use a PQ prekey")
-        if initial_message.pq_ciphertext is not None:
+        if isinstance(initial_message, InitialMessagePQXDH):
             raise InvalidKey(
                 "X3DH cannot accept a PQXDH initial message; "
                 "use PostQuantumExtendedDiffieHellman"
@@ -175,7 +175,6 @@ class ExtendedTripleDiffieHellman:
             signed_prekey_public=our_signed_prekey.key_pair.public.data,
             kem_ciphertexts=list(initial_message.kem_ciphertexts),
             ratchet_public=initial_message.ratchet_public or b"",
-            pq_ciphertext=initial_message.pq_ciphertext,
         )
         try:
             self.kem.verify(
@@ -236,7 +235,7 @@ class ExtendedTripleDiffieHellman:
         return self.derive_secret(secrets)
 
     @staticmethod
-    def validate_initial_algorithms(kem, initial_message: InitialMessage) -> None:
+    def validate_initial_algorithms(kem, initial_message: InitialMessageX3DH) -> None:
         """Reject initiator keys whose algorithm labels do not match ``kem``."""
         expected = kem.name
         checks = [

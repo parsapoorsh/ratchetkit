@@ -21,7 +21,7 @@ from ratchetkit.handshake import ExtendedTripleDiffieHellman
 from ratchetkit.keys.keypair import PublicKey
 from ratchetkit.keys.prekey import PreKeyBundle
 from ratchetkit.ratchet.limits import RatchetLimits
-from ratchetkit.handshake.message import InitialMessage
+from ratchetkit.handshake.message import InitialMessageX3DH
 from tests.helpers import (
     apply_limits,
     ec_ratchet,
@@ -206,7 +206,7 @@ def test_identity_agreement_bound_in_initial_signature():
     initial = result.initial_message
 
     eve = IdentityKeyPair.generate(suite)
-    tampered = InitialMessage(
+    tampered = InitialMessageX3DH(
         identity_signing=initial.identity_signing,
         identity_agreement=eve.agreement.public,
         ephemeral_public=initial.ephemeral_public,
@@ -236,7 +236,7 @@ def test_initial_identity_algorithm_relabel_rejected():
     bundle = x3dh.create_bundle(bob, spk, opk)
     result = x3dh.initiate(alice, bundle)
     initial = result.initial_message
-    tampered = InitialMessage(
+    tampered = InitialMessageX3DH(
         identity_signing=SigningPublicKey(
             initial.identity_signing.data,
             "rsa2048",

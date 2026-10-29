@@ -19,7 +19,7 @@ from ratchetkit.ratchet import (
 )
 from ratchetkit.session import Session
 from ratchetkit.suite import CryptoSuiteTripleRatchet
-from ratchetkit.handshake import InitialMessage
+from ratchetkit.handshake import InitialMessagePQXDH, InitialMessageX3DH
 
 
 def main() -> None:
@@ -50,9 +50,14 @@ def main() -> None:
         print("[bob]   sent PreKeyBundle")
 
         # --- 2. handshake respond + first decrypt ---
-        initial = InitialMessage.from_bytes(
-            link.expect(InitialMessage.CONSTRUCTOR_ID),
-        )
+        if isinstance(suite, CryptoSuiteTripleRatchet):
+            initial = InitialMessagePQXDH.from_bytes(
+                link.expect(InitialMessagePQXDH.CONSTRUCTOR_ID),
+            )
+        else:
+            initial = InitialMessageX3DH.from_bytes(
+                link.expect(InitialMessageX3DH.CONSTRUCTOR_ID),
+            )
         first = Message.from_bytes(link.expect(Message.CONSTRUCTOR_ID))
         session, plain = Session.accept(
             bob,

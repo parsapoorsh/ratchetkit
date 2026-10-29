@@ -22,7 +22,7 @@ from ratchetkit.keys.prekey import OneTimePreKey, PreKeyBundle, SignedPreKey
 from ratchetkit.ratchet.limits import RatchetLimits
 from ratchetkit.session import Session
 from ratchetkit.handshake import ExtendedTripleDiffieHellman
-from ratchetkit.handshake.message import InitialMessage
+from ratchetkit.handshake.message import InitialMessagePQXDH, InitialMessageX3DH
 from tests.helpers import (
     apply_limits,
     ec_ratchet,
@@ -218,8 +218,8 @@ def test_corrupted_first_message_accept_then_honest_retry(pair):
     assert bob.decrypt(alice.encrypt(b"follow")) == b"follow"
 
 
-def _copy_initial(initial: InitialMessage, **overrides) -> InitialMessage:
-    """Clone an InitialMessage, preserving PQXDH fields unless overridden."""
+def _copy_initial(initial, **overrides):
+    """Clone an initial message, preserving type (X3DH or PQXDH)."""
     fields = dict(
         identity_signing=initial.identity_signing,
         identity_agreement=initial.identity_agreement,
@@ -229,11 +229,14 @@ def _copy_initial(initial: InitialMessage, **overrides) -> InitialMessage:
         one_time_prekey_id=initial.one_time_prekey_id,
         signature=initial.signature,
         ratchet_public=initial.ratchet_public,
-        pq_prekey_id=initial.pq_prekey_id,
-        pq_ciphertext=initial.pq_ciphertext,
     )
+    if isinstance(initial, InitialMessagePQXDH):
+        fields["pq_prekey_id"] = initial.pq_prekey_id
+        fields["pq_ciphertext"] = initial.pq_ciphertext
+        fields.update(overrides)
+        return InitialMessagePQXDH(**fields)
     fields.update(overrides)
-    return InitialMessage(**fields)
+    return InitialMessageX3DH(**fields)
 
 
 def test_corrupted_initial_message_rejected(pair):

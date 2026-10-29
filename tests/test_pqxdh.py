@@ -7,7 +7,7 @@ from ratchetkit.handshake import (
     ExtendedTripleDiffieHellman,
     PostQuantumExtendedDiffieHellman,
 )
-from ratchetkit.handshake.message import InitialMessage
+from ratchetkit.handshake.message import InitialMessagePQXDH
 from ratchetkit.keys.identity import IdentityKeyPair
 from ratchetkit.keys.prekey import OneTimePreKey, SignedPreKey
 from ratchetkit.session import Session
@@ -98,7 +98,7 @@ def test_pqxdh_bad_signature_rejected():
     bundle = hs.create_bundle(bob, spk, opk, pq)
     result = hs.initiate(alice, bundle)
     initial = result.initial_message
-    bad = InitialMessage(
+    bad = InitialMessagePQXDH(
         identity_signing=initial.identity_signing,
         identity_agreement=initial.identity_agreement,
         ephemeral_public=initial.ephemeral_public,
@@ -127,7 +127,7 @@ def test_pqxdh_ciphertext_swap_rejected():
     initial = result.initial_message
     # Re-encapsulate to get a different ciphertext; signature still old.
     _, other_ct = suite.pq_kem.encapsulate(pq.key_pair.public)
-    swapped = InitialMessage(
+    swapped = InitialMessagePQXDH(
         identity_signing=initial.identity_signing,
         identity_agreement=initial.identity_agreement,
         ephemeral_public=initial.ephemeral_public,
@@ -193,6 +193,6 @@ def test_bundle_and_initial_roundtrip_with_pq_fields():
 
     alice = IdentityKeyPair.generate(suite)
     result = suite.handshake().initiate(alice, restored)
-    init2 = InitialMessage.from_bytes(result.initial_message.to_bytes())
+    init2 = InitialMessagePQXDH.from_bytes(result.initial_message.to_bytes())
     assert init2.pq_prekey_id == 9
     assert init2.pq_ciphertext == result.initial_message.pq_ciphertext

@@ -23,7 +23,7 @@ from ratchetkit.keys.prekey import (
     SignedPreKey,
 )
 from ratchetkit.suite import KdfLabel
-from ratchetkit.handshake.message import InitialMessage
+from ratchetkit.handshake.message import InitialMessagePQXDH
 from ratchetkit.handshake.x3dh import (
     ExtendedTripleDiffieHellman,
     ExtendedTripleDiffieHellmanResult,
@@ -128,7 +128,7 @@ class PostQuantumExtendedDiffieHellman:
             self.suite.digest.impl,
         )
 
-        message = InitialMessage(
+        message = InitialMessagePQXDH(
             identity_signing=our_identity.signing.public,
             identity_agreement=identity_agreement,
             ephemeral_public=ephemeral.public,
@@ -150,13 +150,13 @@ class PostQuantumExtendedDiffieHellman:
         self,
         our_identity: IdentityKeyPair,
         our_signed_prekey: SignedPreKey,
-        initial_message: InitialMessage,
+        initial_message: InitialMessagePQXDH,
         our_one_time_prekey: OneTimePreKey | None = None,
         our_pq_prekey: SignedPqPreKey | None = None,
     ) -> bytes:
         if our_pq_prekey is None:
             raise InvalidKey("PQXDH respond requires our_pq_prekey")
-        if initial_message.pq_ciphertext is None:
+        if not initial_message.pq_ciphertext:
             raise InvalidKey("PQXDH initial message missing pq_ciphertext")
         if initial_message.pq_prekey_id != our_pq_prekey.key_id:
             raise InvalidKey("PQ prekey id mismatch")
