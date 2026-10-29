@@ -148,9 +148,9 @@ class SparsePostQuantumRatchet(Constructor):
     """Secure messaging ratchet driven by an SCKA (DR §5 / ePrint 2025/078).
 
     Scheduling (paper Table 1):
-      t_curr  — CKA epoch currently being exchanged (may lead t_s)
-      t_s     — epoch under which we encrypt outgoing messages
-      t_r     — epoch under which we decrypt incoming messages
+      t_curr  - CKA epoch currently being exchanged (may lead t_s)
+      t_s     - epoch under which we encrypt outgoing messages
+      t_r     - epoch under which we decrypt incoming messages
     Keys for epoch e are mixed into the root as soon as SCKA produces them
     (sender at first drip chunk; receiver after full reconstruction), but
     ``t_s`` only advances once the peer is known to hold enough chunks
