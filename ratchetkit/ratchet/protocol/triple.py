@@ -31,10 +31,6 @@ if TYPE_CHECKING:
     from ratchetkit.suite.triple import CryptoSuiteTripleRatchet
 
 
-TR_INFO_SPLIT = b"TR v1 SK split"
-TR_INFO_HYBRID = b"TR v1 hybrid mk"
-
-
 class TripleRatchet(Ratchet, Constructor):
     """Hybrid secure messaging: EC Double Ratchet ∥ Sparse PQ Ratchet.
 
@@ -125,7 +121,7 @@ class TripleRatchet(Ratchet, Constructor):
             sk,
             size * 2,
             salt=bytes(size),
-            info=TR_INFO_SPLIT + KdfLabel.TR_SPLIT,
+            info=KdfLabel.TR_SPLIT,
         )
         return material[:size], material[size:]
 
@@ -136,7 +132,7 @@ class TripleRatchet(Ratchet, Constructor):
             ec_mk,
             size,
             salt=pq_mk,
-            info=TR_INFO_HYBRID + KdfLabel.TR_HYBRID,
+            info=KdfLabel.TR_HYBRID,
         )
 
     def encrypt(
