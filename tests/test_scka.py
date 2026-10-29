@@ -40,17 +40,17 @@ def test_scka_bootstrap_and_exchange():
     def drip(sender, receiver, rounds=2):
         for _ in range(rounds):
             send = sender.send()
-            if send.output_key:
+            if send.mix_key:
                 if sender is alice:
-                    secrets_a.append(send.output_key)
+                    secrets_a.append(send.mix_key)
                 else:
-                    secrets_b.append(send.output_key)
+                    secrets_b.append(send.mix_key)
             recv = receiver.receive(send.msg)
-            if recv.output_key:
+            if recv.mix_key:
                 if receiver is alice:
-                    secrets_a.append(recv.output_key)
+                    secrets_a.append(recv.mix_key)
                 else:
-                    secrets_b.append(recv.output_key)
+                    secrets_b.append(recv.mix_key)
 
     # Alice bootstraps public key (no shared secret yet).
     drip(alice, bob, 2)
@@ -58,15 +58,57 @@ def test_scka_bootstrap_and_exchange():
     assert not secrets_a and not secrets_b
     assert bob.is_cka_sender and not alice.is_cka_sender
 
-    # Bob encapsulates → epoch 1 shared by both.
-    drip(bob, alice, 2)
-    assert len(secrets_a) == 1 and len(secrets_b) == 1
-    assert secrets_a[0].epoch == secrets_b[0].epoch == 1
-    assert secrets_a[0].key == secrets_b[0].key
+    # Bob encapsulates: mix_key on first drip chunk (sender), receiver after both.
+    send0 = bob.send()
+    assert send0.mix_key is not None
+    assert send0.mix_key.epoch == 1
+    assert send0.chunks_sent == 1
+    secrets_b.append(send0.mix_key)
+    recv0 = alice.receive(send0.msg)
+    assert recv0.mix_key is None
+    assert alice.peer_ack == 0
+    assert bob.peer_ack == 0
 
-    # Alice encapsulates → epoch 2.
+    send1 = bob.send()
+    assert send1.mix_key is None
+    assert send1.chunks_sent == 2
+    recv1 = alice.receive(send1.msg)
+    assert recv1.mix_key is not None
+    assert recv1.mix_key.epoch == 1
+    secrets_a.append(recv1.mix_key)
+
+    assert len(secrets_a) == 1 and len(secrets_b) == 1
+    assert secrets_a[0].key == secrets_b[0].key
+    assert secrets_a[0].epoch == secrets_b[0].epoch == 1
+
+    # Alice encapsulates → epoch 2 (sender mixes on first chunk).
     secrets_a.clear()
     secrets_b.clear()
     drip(alice, bob, 2)
     assert secrets_a[0].key == secrets_b[0].key
     assert secrets_a[0].epoch == 2
+    # Sender mixed first; receiver after full reconstruction.
+    assert secrets_a[0].epoch == 2
+
+
+def test_scka_peer_ack_tracks_recv_chunks():
+    kem = Mlkem768()
+    alice = ChunkedKemScka.init_alice(kem, n_chunks=4)
+    bob = ChunkedKemScka.init_bob(kem, n_chunks=4)
+
+    # Bootstrap Alice's public key across 4 chunks.
+    for _ in range(4):
+        send = alice.send()
+        bob.receive(send.msg)
+    assert bob.is_cka_sender
+
+    # Bob starts exchange; Alice acks after each chunk.
+    send = bob.send()
+    assert send.mix_key is not None
+    alice.receive(send.msg)
+    # Alice has 1 chunk of Bob's payload; her next ack-only / payload reports it.
+    alice_reply = alice.send()  # not sender yet (Bob still dripping) → ack
+    frame = ChunkFrame.from_bytes(alice_reply.msg)
+    assert frame.ack_count == 1
+    bob.receive(alice_reply.msg)
+    assert bob.peer_ack == 1

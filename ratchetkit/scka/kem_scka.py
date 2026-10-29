@@ -47,14 +47,22 @@ class SckaKey:
 @dataclass
 class SckaSendResult:
     msg: bytes
-    sending_epoch: int
-    output_key: SckaKey | None
+    # CKA epoch currently being exchanged (tCurr); may lead tS.
+    cka_epoch: int
+    # Chunks sent so far for the active outbound payload (cS).
+    chunks_sent: int
+    # Fresh shared secret to mix into the root (sender-side, once per epoch).
+    mix_key: SckaKey | None
 
 
 @dataclass
 class SckaRecvResult:
-    receiving_epoch: int
-    output_key: SckaKey | None
+    # CKA epoch after processing this frame (tCurr).
+    cka_epoch: int
+    # Chunks held for the current inbound payload (cR).
+    chunks_recv: int
+    # Reconstructed shared secret to mix into the root (once per epoch).
+    mix_key: SckaKey | None
 
 
 @dataclass
@@ -64,6 +72,11 @@ class ChunkedKemScka(Constructor):
     Epoch 0 is the handshake secret. Epochs 1, 2, ... are produced one at a time
     by a single encapsulator; the peer reconstructs the same secret from the
     chunked ciphertext.
+
+    Sender mixes the shared secret as soon as encapsulate succeeds (paper TR
+    KDF1 at CKA-Send), while still drip-feeding chunks. Receiver mixes only
+    after reconstructing all ``n_chunks`` pieces. ``peer_ack`` carries how many
+    chunks the peer has stored so SPQR can activate tS early (cAck+1 >= n).
     """
 
     kem: KemBackend
@@ -72,12 +85,15 @@ class ChunkedKemScka(Constructor):
     is_cka_sender: bool = False
     our_key: KeyPair | None = None
     their_public: PublicKey | None = None
+    # Last CKA epoch whose secret has been mixed (or handshake 0).
     epoch: int = 0
     send_chunks: list[bytes] | None = None
     send_chunk_index: int = 0
     send_payload_len: int = 0
     send_key_epoch: int = 0
     pending_send_secret: bytes | None = None
+    # Secret produced by prepare_outbound; returned once as mix_key on first send.
+    pending_mix_secret: bytes | None = None
     recv_chunks: dict[int, bytes] = field(default_factory=dict)
     recv_payload_len: int = 0
     recv_key_epoch: int = 0
@@ -105,6 +121,7 @@ class ChunkedKemScka(Constructor):
             send_payload_len=self.send_payload_len,
             send_key_epoch=self.send_key_epoch,
             pending_send_secret=self.pending_send_secret,
+            pending_mix_secret=self.pending_mix_secret,
             recv_chunks=dict(self.recv_chunks),
             recv_payload_len=self.recv_payload_len,
             recv_key_epoch=self.recv_key_epoch,
@@ -121,7 +138,6 @@ class ChunkedKemScka(Constructor):
         return cls(kem=kem, n_chunks=n_chunks, is_cka_sender=False)
 
     def send(self) -> SckaSendResult:
-        output_key = None
         if self.is_cka_sender and self.send_chunks is None:
             self.prepare_outbound()
 
@@ -129,9 +145,17 @@ class ChunkedKemScka(Constructor):
             # Not our CKA turn (or nothing to send): ack-only.
             return SckaSendResult(
                 msg=self.ack_frame().to_bytes(),
-                sending_epoch=self.epoch,
-                output_key=None,
+                cka_epoch=self.epoch,
+                chunks_sent=0,
+                mix_key=None,
             )
+
+        # Emit mix_key once when the sender first starts drip-feeding a secret.
+        mix_key = None
+        if self.pending_mix_secret is not None:
+            mix_key = SckaKey(self.send_key_epoch, self.pending_mix_secret)
+            self.epoch = self.send_key_epoch
+            self.pending_mix_secret = None
 
         index = self.send_chunk_index
         frame = ChunkFrame(
@@ -144,15 +168,11 @@ class ChunkedKemScka(Constructor):
             data=self.send_chunks[index],
         )
         self.send_chunk_index = index + 1
+        chunks_sent = self.send_chunk_index
+        cka_epoch = self.send_key_epoch
 
-        sending_epoch = self.epoch
         if self.send_chunk_index >= self.n_chunks:
-            if self.pending_send_secret is not None:
-                next_epoch = self.send_key_epoch
-                output_key = SckaKey(next_epoch, self.pending_send_secret)
-                self.epoch = next_epoch
-                sending_epoch = next_epoch
-                self.pending_send_secret = None
+            self.pending_send_secret = None
             self.send_chunks = None
             self.send_chunk_index = 0
             # Finished distributing; wait for peer to become CKA sender.
@@ -160,8 +180,9 @@ class ChunkedKemScka(Constructor):
 
         return SckaSendResult(
             msg=frame.to_bytes(),
-            sending_epoch=sending_epoch,
-            output_key=output_key,
+            cka_epoch=cka_epoch,
+            chunks_sent=chunks_sent,
+            mix_key=mix_key,
         )
 
     def receive(self, msg: bytes) -> SckaRecvResult:
@@ -171,7 +192,11 @@ class ChunkedKemScka(Constructor):
         if frame.flags & ChunkFrame.FLAG_ACK_ONLY and not (
             frame.flags & ChunkFrame.FLAG_PAYLOAD
         ):
-            return SckaRecvResult(receiving_epoch=self.epoch, output_key=None)
+            return SckaRecvResult(
+                cka_epoch=self.epoch,
+                chunks_recv=len(self.recv_chunks),
+                mix_key=None,
+            )
 
         if not (frame.flags & ChunkFrame.FLAG_PAYLOAD):
             raise InvalidMessage("SCKA frame missing payload flag")
@@ -179,7 +204,11 @@ class ChunkedKemScka(Constructor):
             raise InvalidMessage("SCKA n_chunks mismatch")
 
         if frame.key_epoch < self.recv_key_epoch:
-            return SckaRecvResult(receiving_epoch=self.epoch, output_key=None)
+            return SckaRecvResult(
+                cka_epoch=self.epoch,
+                chunks_recv=len(self.recv_chunks),
+                mix_key=None,
+            )
 
         if frame.key_epoch != self.recv_key_epoch or not self.recv_chunks:
             if frame.key_epoch != self.recv_key_epoch:
@@ -190,18 +219,22 @@ class ChunkedKemScka(Constructor):
         if frame.chunk_index not in self.recv_chunks:
             self.recv_chunks[frame.chunk_index] = frame.data
 
-        output_key = None
+        mix_key = None
         if len(self.recv_chunks) >= self.n_chunks:
             payload = self.codec.join(self.recv_chunks, self.recv_payload_len)
             self.recv_chunks = {}
             secret = self.consume_payload(payload)
             if secret is not None:
-                output_key = SckaKey(frame.key_epoch, secret)
+                mix_key = SckaKey(frame.key_epoch, secret)
                 self.epoch = frame.key_epoch
             # Peer finished their CKA payload; it is now our turn to send.
             self.is_cka_sender = True
 
-        return SckaRecvResult(receiving_epoch=self.epoch, output_key=output_key)
+        return SckaRecvResult(
+            cka_epoch=max(self.epoch, frame.key_epoch),
+            chunks_recv=len(self.recv_chunks),
+            mix_key=mix_key,
+        )
 
     def prepare_outbound(self) -> None:
         if self.their_public is None:
@@ -231,6 +264,8 @@ class ChunkedKemScka(Constructor):
         self.send_payload_len = len(payload)
         self.send_key_epoch = key_epoch
         self.pending_send_secret = secret
+        # Emit as mix_key on the first drip chunk (paper: KDF1 at CKA-Send).
+        self.pending_mix_secret = secret
         self.peer_ack = 0
 
     def consume_payload(self, payload: bytes) -> bytes | None:
@@ -337,6 +372,7 @@ class ChunkedKemScka(Constructor):
                 encode_u32(self.send_payload_len),
                 encode_u32(self.send_key_epoch),
                 encode_optional_bytes(self.pending_send_secret),
+                encode_optional_bytes(self.pending_mix_secret),
                 encode_bytes(recv_blob),
                 encode_u32(self.recv_payload_len),
                 encode_u32(self.recv_key_epoch),
@@ -357,6 +393,7 @@ class ChunkedKemScka(Constructor):
         send_payload_len, offset = read_u32(data, offset)
         send_key_epoch, offset = read_u32(data, offset)
         pending_send_secret, offset = read_optional_bytes(data, offset)
+        pending_mix_secret, offset = read_optional_bytes(data, offset)
         recv_blob, offset = read_bytes(data, offset)
         recv_payload_len, offset = read_u32(data, offset)
         recv_key_epoch, offset = read_u32(data, offset)
@@ -402,6 +439,7 @@ class ChunkedKemScka(Constructor):
             send_payload_len=send_payload_len,
             send_key_epoch=send_key_epoch,
             pending_send_secret=pending_send_secret,
+            pending_mix_secret=pending_mix_secret,
             recv_chunks=recv_chunks,
             recv_payload_len=recv_payload_len,
             recv_key_epoch=recv_key_epoch,
