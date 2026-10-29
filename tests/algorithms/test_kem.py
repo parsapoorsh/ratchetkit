@@ -61,9 +61,15 @@ def test_x25519_dh_golden(goldens):
     g = goldens["kem"]["x25519"]
     kem = X25519()
     assert key_exchange_backend(KeyExchangeAlg.X25519) is X25519
-    alice = KeyPair(bytes.fromhex(g["alice_private"]), KeyExchangeAlg.X25519)
+    alice = KeyPair(
+        private=bytes.fromhex(g["alice_private"]),
+        public=PublicKey(kem.derive_public(bytes.fromhex(g["alice_private"])), KeyExchangeAlg.X25519),
+    )
     bob_pub = PublicKey(bytes.fromhex(g["bob_public"]), KeyExchangeAlg.X25519)
-    bob = KeyPair(bytes.fromhex(g["bob_private"]), KeyExchangeAlg.X25519)
+    bob = KeyPair(
+        private=bytes.fromhex(g["bob_private"]),
+        public=PublicKey(kem.derive_public(bytes.fromhex(g["bob_private"])), KeyExchangeAlg.X25519),
+    )
     alice_pub = PublicKey(bytes.fromhex(g["alice_public"]), KeyExchangeAlg.X25519)
     ss = bytes.fromhex(g["shared_secret"])
     assert kem.dh(alice, bob_pub) == ss
@@ -76,7 +82,10 @@ def test_ed25519_sign_verify_golden(goldens):
     g = goldens["kem"]["ed25519"]
     signer = Ed25519()
     msg = g["message"].encode("ascii")
-    sk = SigningKeyPair(bytes.fromhex(g["private"]), SigningAlg.ED25519)
+    sk = SigningKeyPair(
+        private=bytes.fromhex(g["private"]),
+        public=SigningPublicKey(signer.derive_public(bytes.fromhex(g["private"])), SigningAlg.ED25519),
+    )
     pk = SigningPublicKey(bytes.fromhex(g["public"]), SigningAlg.ED25519)
     sig = bytes.fromhex(g["signature"])
     assert signer.sign(sk, msg, Sha256) == sig
@@ -87,9 +96,15 @@ def test_ed25519_sign_verify_golden(goldens):
 def test_x448_dh_golden(goldens):
     g = goldens["kem"]["x448"]
     kem = X448()
-    alice = KeyPair(bytes.fromhex(g["alice_private"]), KeyExchangeAlg.X448)
+    alice = KeyPair(
+        private=bytes.fromhex(g["alice_private"]),
+        public=PublicKey(kem.derive_public(bytes.fromhex(g["alice_private"])), KeyExchangeAlg.X448),
+    )
     bob_pub = PublicKey(bytes.fromhex(g["bob_public"]), KeyExchangeAlg.X448)
-    bob = KeyPair(bytes.fromhex(g["bob_private"]), KeyExchangeAlg.X448)
+    bob = KeyPair(
+        private=bytes.fromhex(g["bob_private"]),
+        public=PublicKey(kem.derive_public(bytes.fromhex(g["bob_private"])), KeyExchangeAlg.X448),
+    )
     alice_pub = PublicKey(bytes.fromhex(g["alice_public"]), KeyExchangeAlg.X448)
     ss = bytes.fromhex(g["shared_secret"])
     assert kem.dh(alice, bob_pub) == ss
@@ -100,7 +115,10 @@ def test_ed448_sign_verify_golden(goldens):
     g = goldens["kem"]["ed448"]
     signer = Ed448()
     msg = g["message"].encode("ascii")
-    sk = SigningKeyPair(bytes.fromhex(g["private"]), SigningAlg.ED448)
+    sk = SigningKeyPair(
+        private=bytes.fromhex(g["private"]),
+        public=SigningPublicKey(signer.derive_public(bytes.fromhex(g["private"])), SigningAlg.ED448),
+    )
     pk = SigningPublicKey(bytes.fromhex(g["public"]), SigningAlg.ED448)
     sig = bytes.fromhex(g["signature"])
     assert signer.sign(sk, msg, Sha256) == sig
@@ -118,9 +136,15 @@ EC_CASES = [
 def test_ec_dh_and_ecdsa_golden(goldens, name, cls, alg, scls, salg):
     g = goldens["kem"][name]
     kem = cls()
-    alice = KeyPair(bytes.fromhex(g["alice_private"]), alg)
+    alice = KeyPair(
+        private=bytes.fromhex(g["alice_private"]),
+        public=PublicKey(kem.derive_public(bytes.fromhex(g["alice_private"])), alg),
+    )
     bob_pub = PublicKey(bytes.fromhex(g["bob_public"]), alg)
-    bob = KeyPair(bytes.fromhex(g["bob_private"]), alg)
+    bob = KeyPair(
+        private=bytes.fromhex(g["bob_private"]),
+        public=PublicKey(kem.derive_public(bytes.fromhex(g["bob_private"])), alg),
+    )
     alice_pub = PublicKey(bytes.fromhex(g["alice_public"]), alg)
     ss = bytes.fromhex(g["shared_secret"])
     assert kem.dh(alice, bob_pub) == ss
@@ -128,7 +152,10 @@ def test_ec_dh_and_ecdsa_golden(goldens, name, cls, alg, scls, salg):
 
     msg = g["message"].encode("ascii")
     signer = scls()
-    sk = SigningKeyPair(bytes.fromhex(g["alice_private"]), salg)
+    sk = SigningKeyPair(
+        private=bytes.fromhex(g["alice_private"]),
+        public=SigningPublicKey(signer.derive_public(bytes.fromhex(g["alice_private"])), salg),
+    )
     pk = SigningPublicKey(bytes.fromhex(g["alice_public"]), salg)
     openssl_sig = bytes.fromhex(g["signature_sha256"])
     signer.verify(pk, msg, openssl_sig, Sha256)
@@ -147,7 +174,10 @@ RSA_CASES = [
 def test_rsa_oaep_and_pss_golden(goldens, name, cls, alg, scls, salg):
     g = goldens["kem"][name]
     kem = cls()
-    priv = KeyPair(bytes.fromhex(g["private_der"]), alg)
+    priv = KeyPair(
+        private=bytes.fromhex(g["private_der"]),
+        public=PublicKey(kem.derive_public(bytes.fromhex(g["private_der"])), alg),
+    )
     pub = PublicKey(bytes.fromhex(g["public_der"]), alg)
     secret = bytes.fromhex(g["oaep_secret"])
     ct = bytes.fromhex(g["oaep_ciphertext"])
@@ -157,7 +187,10 @@ def test_rsa_oaep_and_pss_golden(goldens, name, cls, alg, scls, salg):
 
     msg = g["message"].encode("ascii")
     signer = scls()
-    sk = SigningKeyPair(bytes.fromhex(g["private_der"]), salg)
+    sk = SigningKeyPair(
+        private=bytes.fromhex(g["private_der"]),
+        public=SigningPublicKey(signer.derive_public(bytes.fromhex(g["private_der"])), salg),
+    )
     pk = SigningPublicKey(bytes.fromhex(g["public_der"]), salg)
     openssl_sig = bytes.fromhex(g["pss_signature_sha256"])
     signer.verify(pk, msg, openssl_sig, Sha256)
@@ -175,7 +208,10 @@ MLKEM_CASES = [
 def test_mlkem_decap_golden(goldens, name, cls, alg):
     g = goldens["kem"][name]
     kem = cls()
-    priv = KeyPair(bytes.fromhex(g["seed"]), alg)
+    priv = KeyPair(
+        private=bytes.fromhex(g["seed"]),
+        public=PublicKey(kem.derive_public(bytes.fromhex(g["seed"])), alg),
+    )
     pub = PublicKey(bytes.fromhex(g["public"]), alg)
     ct = bytes.fromhex(g["ciphertext"])
     ss = bytes.fromhex(g["shared_secret"])

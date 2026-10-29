@@ -25,11 +25,9 @@ from ratchetkit.ratchet.message import (
     TripleRatchetMessage,
 )
 from ratchetkit.ratchet.protocol import DoubleRatchet, Ratchet, TripleRatchet
-from ratchetkit.suite import (
-    CryptoSuite,
-    CryptoSuiteDoubleRatchet,
-    CryptoSuiteTripleRatchet,
-)
+from ratchetkit.suite.double import CryptoSuiteDoubleRatchet
+from ratchetkit.suite.double import CryptoSuiteDoubleRatchet as CryptoSuite
+from ratchetkit.suite.triple import CryptoSuiteTripleRatchet
 from ratchetkit.handshake.message import InitialMessageX3DH
 
 

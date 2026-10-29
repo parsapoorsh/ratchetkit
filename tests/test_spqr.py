@@ -8,10 +8,10 @@ from ratchetkit.ratchet import SparsePostQuantumRatchet
 from ratchetkit.suite import (
     SigningAlg,
     CipherAlg,
-    CryptoSuiteTripleRatchet,
     HashAlg,
     KeyExchangeAlg,
 )
+from ratchetkit.suite.triple import CryptoSuiteTripleRatchet
 
 
 def setup_spqr(n_chunks=2):

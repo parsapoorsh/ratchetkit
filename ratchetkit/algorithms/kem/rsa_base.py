@@ -31,13 +31,14 @@ class RsaKem(KemBackend):
     secret_size = 32
 
     def generate_keypair(self) -> KeyPair:
-        private = rsa.generate_private_key(
+        raw = rsa.generate_private_key(
             public_exponent=65537,
             key_size=self.key_size,
         )
+        private = self.encode_private(raw)
         return KeyPair(
-            private=self.encode_private(private),
-            algorithm=self.algorithm,
+            private=private,
+            public=PublicKey(self.derive_public(private), self.algorithm),
         )
 
     def derive_public(self, private: bytes) -> bytes:

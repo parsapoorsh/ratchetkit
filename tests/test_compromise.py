@@ -34,7 +34,8 @@ from ratchetkit.ratchet.protocol.double import DoubleRatchet
 from ratchetkit.ratchet.protocol.triple import TripleRatchet
 from ratchetkit.ratchet.spqr import SparsePostQuantumRatchet
 from ratchetkit.session import Session
-from ratchetkit.suite import CryptoSuite, CryptoSuiteTripleRatchet
+from ratchetkit.suite.double import CryptoSuiteDoubleRatchet
+from ratchetkit.suite.triple import CryptoSuiteTripleRatchet
 from tests.helpers import ec_ratchet
 
 

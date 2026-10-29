@@ -32,7 +32,7 @@ if TYPE_CHECKING:
         SignedPqPreKey,
         SignedPreKey,
     )
-    from ratchetkit.handshake.pqxdh import PostQuantumExtendedDiffieHellman
+from ratchetkit.handshake.pqxdh import PostQuantumExtendedDiffieHellman
 
 
 @dataclass(frozen=True, kw_only=True)

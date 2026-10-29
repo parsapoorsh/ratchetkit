@@ -7,11 +7,11 @@ from ratchetkit.keys.identity import IdentityKeyPair
 from ratchetkit.keys.prekey import OneTimePreKey, SignedPreKey
 from ratchetkit.suite import (
     CipherAlg,
-    CryptoSuiteDoubleRatchet,
     HashAlg,
     KeyExchangeAlg,
     SigningAlg,
 )
+from ratchetkit.suite.double import CryptoSuiteDoubleRatchet
 from ratchetkit.suite.registry import hash_backend
 from ratchetkit.handshake import ExtendedTripleDiffieHellman
 

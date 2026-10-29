@@ -10,10 +10,10 @@ from ratchetkit.session import Session
 from ratchetkit.suite import (
     SigningAlg,
     CipherAlg,
-    CryptoSuiteTripleRatchet,
     HashAlg,
     KeyExchangeAlg,
 )
+from ratchetkit.suite.triple import CryptoSuiteTripleRatchet
 
 
 def triple_suite(n_chunks=2):

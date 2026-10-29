@@ -26,7 +26,7 @@ from ratchetkit.suite import KdfLabel
 from ratchetkit.handshake.message import InitialMessagePQXDH, InitialMessageX3DH
 
 if TYPE_CHECKING:
-    from ratchetkit.suite import CryptoSuite
+    from ratchetkit.suite.double import CryptoSuiteDoubleRatchet as CryptoSuite
 
 
 @dataclass

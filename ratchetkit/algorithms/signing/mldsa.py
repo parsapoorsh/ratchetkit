@@ -22,10 +22,11 @@ class MldsaBackend(SigningBackend):
     dsa_public_cls: Any
 
     def generate_keypair(self) -> SigningKeyPair:
-        private = self.dsa_private_cls.generate()
+        raw = self.dsa_private_cls.generate()
+        private = raw.private_bytes_raw()
         return SigningKeyPair(
-            private=private.private_bytes_raw(),
-            algorithm=self.algorithm,
+            private=private,
+            public=SigningPublicKey(self.derive_public(private), self.algorithm),
         )
 
     def derive_public(self, private: bytes) -> bytes:

@@ -13,7 +13,7 @@ from ratchetkit.packing import encode_bytes, encode_u32, read_bytes, read_u32
 from ratchetkit.suite import ChainKeySeed
 
 if TYPE_CHECKING:
-    from ratchetkit.suite import CryptoSuite
+    from ratchetkit.suite.double import CryptoSuiteDoubleRatchet as CryptoSuite
 
 
 class ChainKey:

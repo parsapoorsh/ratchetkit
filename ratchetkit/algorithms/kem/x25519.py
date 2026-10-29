@@ -1,6 +1,6 @@
 """X25519 DH-as-KEM (agreement only)."""
-from __future__ import annotations
 
+from __future__ import annotations
 
 from cryptography.hazmat.primitives.asymmetric import x25519
 from cryptography.hazmat.primitives.serialization import (
@@ -21,14 +21,15 @@ class X25519(KemBackend):
     supports_dh = True
 
     def generate_keypair(self) -> KeyPair:
-        private = x25519.X25519PrivateKey.generate()
+        raw = x25519.X25519PrivateKey.generate()
+        private = raw.private_bytes(
+            Encoding.Raw,
+            PrivateFormat.Raw,
+            NoEncryption(),
+        )
         return KeyPair(
-            private=private.private_bytes(
-                Encoding.Raw,
-                PrivateFormat.Raw,
-                NoEncryption(),
-            ),
-            algorithm=self.algorithm,
+            private=private,
+            public=PublicKey(self.derive_public(private), self.algorithm),
         )
 
     def derive_public(self, private: bytes) -> bytes:

@@ -23,10 +23,11 @@ class EcKem(KemBackend):
     supports_dh = True
 
     def generate_keypair(self) -> KeyPair:
-        private = ec.generate_private_key(self.curve)
+        raw = ec.generate_private_key(self.curve)
+        private = self.encode_private(raw)
         return KeyPair(
-            private=self.encode_private(private),
-            algorithm=self.algorithm,
+            private=private,
+            public=PublicKey(self.derive_public(private), self.algorithm),
         )
 
     def derive_public(self, private: bytes) -> bytes:

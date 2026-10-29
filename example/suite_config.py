@@ -9,11 +9,11 @@ from __future__ import annotations
 from ratchetkit.suite import (
     SigningAlg,
     CipherAlg,
-    CryptoSuiteDoubleRatchet,
-    CryptoSuiteTripleRatchet,
     HashAlg,
     KeyExchangeAlg,
 )
+from ratchetkit.suite.double import CryptoSuiteDoubleRatchet
+from ratchetkit.suite.triple import CryptoSuiteTripleRatchet
 
 
 def demo_suite() -> CryptoSuiteDoubleRatchet:

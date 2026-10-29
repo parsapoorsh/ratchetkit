@@ -17,7 +17,7 @@ from ratchetkit.ratchet import (
     TripleRatchetMessage,
 )
 from ratchetkit.session import Session
-from ratchetkit.suite import CryptoSuiteTripleRatchet
+from ratchetkit.suite.triple import CryptoSuiteTripleRatchet
 
 
 def main() -> None:

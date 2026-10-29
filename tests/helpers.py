@@ -21,12 +21,11 @@ from ratchetkit.session import Session
 from ratchetkit.suite import (
     SigningAlg,
     CipherAlg,
-    CryptoSuite,
-    CryptoSuiteDoubleRatchet,
-    CryptoSuiteTripleRatchet,
     HashAlg,
     KeyExchangeAlg,
 )
+from ratchetkit.suite.double import CryptoSuiteDoubleRatchet
+from ratchetkit.suite.triple import CryptoSuiteTripleRatchet
 
 
 SUITE_KINDS = ("double", "triple")

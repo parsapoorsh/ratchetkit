@@ -16,7 +16,8 @@ from ratchetkit.errors import (
 )
 from ratchetkit.keys.identity import IdentityKeyPair
 from ratchetkit.keys.prekey import OneTimePreKey, SignedPreKey
-from ratchetkit.suite import SigningAlg, CipherAlg, CryptoSuiteDoubleRatchet, HashAlg, KeyExchangeAlg
+from ratchetkit.suite import SigningAlg, CipherAlg, HashAlg, KeyExchangeAlg
+from ratchetkit.suite.double import CryptoSuiteDoubleRatchet
 from ratchetkit.handshake import ExtendedTripleDiffieHellman
 from ratchetkit.keys.keypair import PublicKey
 from ratchetkit.keys.prekey import PreKeyBundle

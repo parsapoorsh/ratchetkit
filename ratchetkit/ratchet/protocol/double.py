@@ -29,7 +29,7 @@ from ratchetkit.ratchet.protocol.base import Ratchet
 from ratchetkit.ratchet.skipped import SkippedMessageKeys
 
 if TYPE_CHECKING:
-    from ratchetkit.suite import CryptoSuite
+    from ratchetkit.suite.double import CryptoSuiteDoubleRatchet as CryptoSuite
 
 
 class DoubleRatchet(Ratchet):

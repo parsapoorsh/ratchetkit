@@ -7,11 +7,11 @@ from ratchetkit.suite import (
     SigningAlg,
     ChainKeySeed,
     CipherAlg,
-    CryptoSuiteDoubleRatchet,
     HashAlg,
     KdfLabel,
     KeyExchangeAlg,
 )
+from ratchetkit.suite.double import CryptoSuiteDoubleRatchet
 
 
 def test_hmac_and_hkdf_basic():

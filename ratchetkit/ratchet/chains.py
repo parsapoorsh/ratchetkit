@@ -11,7 +11,7 @@ from ratchetkit.keys.keypair import KeyPair, PublicKey
 from ratchetkit.packing import encode_bytes, read_bytes
 
 if TYPE_CHECKING:
-    from ratchetkit.suite import CryptoSuite
+    from ratchetkit.suite.double import CryptoSuiteDoubleRatchet as CryptoSuite
 
 
 @dataclass

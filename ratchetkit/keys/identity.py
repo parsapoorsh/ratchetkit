@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING
 from ratchetkit.keys.keypair import KeyPair, SigningKeyPair
 
 if TYPE_CHECKING:
-    from ratchetkit.suite import CryptoSuite
+    from ratchetkit.suite.double import CryptoSuiteDoubleRatchet as CryptoSuite
 
 
 @dataclass

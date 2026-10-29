@@ -1,6 +1,6 @@
 """Ed448 signatures."""
-from __future__ import annotations
 
+from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
@@ -19,21 +19,21 @@ from ratchetkit.suite.algs import SigningAlg
 
 if TYPE_CHECKING:
     from ratchetkit.algorithms.hash.base import HashAlgorithm
-    from ratchetkit.keys.keypair import SigningPublicKey
 
 
 class Ed448(SigningBackend):
     algorithm = SigningAlg.ED448
 
     def generate_keypair(self) -> SigningKeyPair:
-        private = ed448.Ed448PrivateKey.generate()
+        raw = ed448.Ed448PrivateKey.generate()
+        private = raw.private_bytes(
+            Encoding.Raw,
+            PrivateFormat.Raw,
+            NoEncryption(),
+        )
         return SigningKeyPair(
-            private=private.private_bytes(
-                Encoding.Raw,
-                PrivateFormat.Raw,
-                NoEncryption(),
-            ),
-            algorithm=self.algorithm,
+            private=private,
+            public=SigningPublicKey(self.derive_public(private), self.algorithm),
         )
 
     def derive_public(self, private: bytes) -> bytes:

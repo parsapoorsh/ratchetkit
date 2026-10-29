@@ -24,10 +24,11 @@ class EcdsaBackend(SigningBackend):
     curve: ec.EllipticCurve
 
     def generate_keypair(self) -> SigningKeyPair:
-        private = ec.generate_private_key(self.curve)
+        raw = ec.generate_private_key(self.curve)
+        private = self.encode_private(raw)
         return SigningKeyPair(
-            private=self.encode_private(private),
-            algorithm=self.algorithm,
+            private=private,
+            public=SigningPublicKey(self.derive_public(private), self.algorithm),
         )
 
     def derive_public(self, private: bytes) -> bytes:

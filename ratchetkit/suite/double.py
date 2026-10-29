@@ -39,7 +39,7 @@ if TYPE_CHECKING:
         SignedPqPreKey,
         SignedPreKey,
     )
-    from ratchetkit.handshake.x3dh import ExtendedTripleDiffieHellman
+from ratchetkit.handshake.x3dh import ExtendedTripleDiffieHellman
 
 
 @dataclass(frozen=True, kw_only=True)

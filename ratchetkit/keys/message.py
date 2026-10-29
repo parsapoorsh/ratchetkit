@@ -18,7 +18,7 @@ from ratchetkit.packing import (
 from ratchetkit.suite import KdfLabel
 
 if TYPE_CHECKING:
-    from ratchetkit.suite import CryptoSuite
+    from ratchetkit.suite.double import CryptoSuiteDoubleRatchet as CryptoSuite
 
 
 @dataclass(frozen=True)

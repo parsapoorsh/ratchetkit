@@ -34,7 +34,7 @@ from ratchetkit.handshake.x3dh import (
 
 if TYPE_CHECKING:
     from ratchetkit.algorithms.kem.base import KemBackend
-    from ratchetkit.suite import CryptoSuite
+    from ratchetkit.suite.double import CryptoSuiteDoubleRatchet as CryptoSuite
 
 
 class PostQuantumExtendedDiffieHellman:

@@ -15,7 +15,7 @@ from cryptography.hazmat.primitives.serialization import (
 
 from ratchetkit.errors import InvalidKey, InvalidSignature
 from ratchetkit.algorithms.signing.base import SigningBackend
-from ratchetkit.keys.keypair import SigningKeyPair, SigningPublicKey
+from ratchetkit.keys.keypair import SigningKeyPair, SigningPublicKey, SigningPublicKey
 from ratchetkit.suite.algs import SigningAlg
 
 if TYPE_CHECKING:
@@ -30,13 +30,14 @@ class RsaPssBackend(SigningBackend):
     key_size: int
 
     def generate_keypair(self) -> SigningKeyPair:
-        private = rsa.generate_private_key(
+        raw = rsa.generate_private_key(
             public_exponent=65537,
             key_size=self.key_size,
         )
+        private = self.encode_private(raw)
         return SigningKeyPair(
-            private=self.encode_private(private),
-            algorithm=self.algorithm,
+            private=private,
+            public=SigningPublicKey(self.derive_public(private), self.algorithm),
         )
 
     def derive_public(self, private: bytes) -> bytes:

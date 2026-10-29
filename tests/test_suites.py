@@ -10,12 +10,11 @@ from ratchetkit.suite import (
     DEFAULT_TAG_SIZE,
     MIN_TAG_SIZE,
     CipherAlg,
-    CryptoSuite,
-    CryptoSuiteDoubleRatchet,
-    CryptoSuiteTripleRatchet,
     HashAlg,
     KeyExchangeAlg,
 )
+from ratchetkit.suite.double import CryptoSuiteDoubleRatchet
+from ratchetkit.suite.triple import CryptoSuiteTripleRatchet
 from tests.helpers import msg_counter
 
 

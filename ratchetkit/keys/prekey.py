@@ -25,7 +25,8 @@ from ratchetkit.suite.registry import hash_backend
 
 if TYPE_CHECKING:
     from ratchetkit.algorithms.kem.base import KemBackend
-    from ratchetkit.suite import CryptoSuite
+    from ratchetkit.suite.double import CryptoSuiteDoubleRatchet
+    from ratchetkit.suite.double import CryptoSuiteDoubleRatchet as CryptoSuite
 
 
 @dataclass
@@ -101,7 +102,7 @@ class SignedPqPreKey:
     ) -> SignedPqPreKey:
         suite = identity.require_suite()
         if pq_kem is None:
-            from ratchetkit.suite import CryptoSuiteTripleRatchet
+            from ratchetkit.suite.triple import CryptoSuiteTripleRatchet
 
             if isinstance(suite, CryptoSuiteTripleRatchet):
                 pq_kem = suite.pq_kem

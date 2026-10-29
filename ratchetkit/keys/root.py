@@ -13,7 +13,7 @@ from ratchetkit.suite import KdfLabel
 from ratchetkit.suite.registry import hash_backend
 
 if TYPE_CHECKING:
-    from ratchetkit.suite import CryptoSuite
+    from ratchetkit.suite.double import CryptoSuiteDoubleRatchet as CryptoSuite
 
 
 class RootKey:

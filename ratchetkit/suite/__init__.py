@@ -1,4 +1,10 @@
-"""Crypto suites and algorithm enums."""
+"""Algorithm enums and suite constants.
+
+Import suite classes from ``ratchetkit.suite.double`` /
+``ratchetkit.suite.triple``, and backend lookup from
+``ratchetkit.suite.registry``. This package init only exposes enums so
+``keys.keypair`` can import ``KeyExchangeAlg`` without loading KEM modules.
+"""
 
 from ratchetkit.suite.algs import (
     DEFAULT_SCKA_CHUNKS,
@@ -13,17 +19,6 @@ from ratchetkit.suite.algs import (
     KeyExchangeAlg,
     SigningAlg,
 )
-from ratchetkit.suite.double import CryptoSuiteDoubleRatchet
-from ratchetkit.suite.registry import (
-    cipher_backend,
-    hash_backend,
-    key_exchange_backend,
-    signing_backend,
-)
-from ratchetkit.suite.triple import CryptoSuiteTripleRatchet
-
-# Type-hint alias: Double is the shared base (Triple subclasses it).
-CryptoSuite = CryptoSuiteDoubleRatchet
 
 __all__ = [
     "DEFAULT_SCKA_CHUNKS",
@@ -33,15 +28,8 @@ __all__ = [
     "Alg",
     "ChainKeySeed",
     "CipherAlg",
-    "CryptoSuite",
-    "CryptoSuiteDoubleRatchet",
-    "CryptoSuiteTripleRatchet",
     "HashAlg",
     "KdfLabel",
     "KeyExchangeAlg",
     "SigningAlg",
-    "cipher_backend",
-    "hash_backend",
-    "key_exchange_backend",
-    "signing_backend",
 ]

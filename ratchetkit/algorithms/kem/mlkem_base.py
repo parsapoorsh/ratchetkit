@@ -25,10 +25,11 @@ class MlkemBackend(KemBackend):
     kem_public_cls: Any
 
     def generate_keypair(self) -> KeyPair:
-        private = self.kem_private_cls.generate()
+        raw = self.kem_private_cls.generate()
+        private = raw.private_bytes_raw()
         return KeyPair(
-            private=private.private_bytes_raw(),
-            algorithm=self.algorithm,
+            private=private,
+            public=PublicKey(self.derive_public(private), self.algorithm),
         )
 
     def derive_public(self, private: bytes) -> bytes:
