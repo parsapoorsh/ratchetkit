@@ -39,6 +39,11 @@ SUITES = [
         cipher=CipherAlg.AES256,
         key_exchange=KeyExchangeAlg.SECP256R1,
     ),
+    CryptoSuiteDoubleRatchet(
+        digest=HashAlg.SHA256,
+        cipher=CipherAlg.AES256,
+        key_exchange=KeyExchangeAlg.RSA3072,
+    ),
     # Post-quantum identity path: ML-KEM agreement + ML-DSA (still Double Ratchet)
     CryptoSuiteDoubleRatchet(
         digest=HashAlg.SHA3_256,

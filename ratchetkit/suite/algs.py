@@ -21,6 +21,7 @@ from ratchetkit.algorithms.hash.sha512 import Sha512
 from ratchetkit.algorithms.kem.mlkem1024 import Mlkem1024
 from ratchetkit.algorithms.kem.mlkem768 import Mlkem768
 from ratchetkit.algorithms.kem.rsa2048 import Rsa2048
+from ratchetkit.algorithms.kem.rsa3072 import Rsa3072
 from ratchetkit.algorithms.kem.rsa4096 import Rsa4096
 from ratchetkit.algorithms.kem.secp256r1 import Secp256r1
 from ratchetkit.algorithms.kem.secp384r1 import Secp384r1
@@ -97,6 +98,7 @@ class KeyExchangeAlg(Alg):
     SECP384R1 = 4
     SECP521R1 = 5
     RSA2048 = 6
+    RSA3072 = 10
     RSA4096 = 7
     # Post-quantum (FIPS 203 ML-KEM + FIPS 204 ML-DSA for identity signing)
     MLKEM768 = 8
@@ -112,6 +114,7 @@ class KeyExchangeAlg(Alg):
             KeyExchangeAlg.SECP384R1: Secp384r1,
             KeyExchangeAlg.SECP521R1: Secp521r1,
             KeyExchangeAlg.RSA2048: Rsa2048,
+            KeyExchangeAlg.RSA3072: Rsa3072,
             KeyExchangeAlg.RSA4096: Rsa4096,
             KeyExchangeAlg.MLKEM768: Mlkem768,
             KeyExchangeAlg.MLKEM1024: Mlkem1024,

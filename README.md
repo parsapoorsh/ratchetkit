@@ -161,7 +161,7 @@ Each hash, cipher, and KEM lives in its own class file under
 | `KeyExchangeAlg` | Agreement | Identity signatures | Notes |
 |------------------|-----------|---------------------|--------|
 | `X25519` / `X448` / `SECP...` | DH | Ed25519 / Ed448 / ECDSA | classic Double Ratchet |
-| `RSA2048` / `RSA4096` | RSA-OAEP KEM | RSA-PSS | OPK required |
+| `RSA2048` / `RSA3072` / `RSA4096` | RSA-OAEP KEM | RSA-PSS | OPK required |
 | `MLKEM768` / `MLKEM1024` | ML-KEM | ML-DSA-65 / ML-DSA-87 | OPK required; `cryptography>=45` |
 
 For **Triple Ratchet**, use classical `key_exchange` (e.g. X25519) and set
