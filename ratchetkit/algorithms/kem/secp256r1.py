@@ -1,12 +1,13 @@
-"""SECP256R1 ECDH-as-KEM + ECDSA signatures."""
-
+"""SECP256R1 ECDH."""
 from __future__ import annotations
+
 
 from cryptography.hazmat.primitives.asymmetric import ec
 
 from ratchetkit.algorithms.kem.ec_base import EcKem
+from ratchetkit.suite.algs import KeyExchangeAlg
 
 
 class Secp256r1(EcKem):
-    name = "secp256r1"
+    algorithm = KeyExchangeAlg.SECP256R1
     curve = ec.SECP256R1()

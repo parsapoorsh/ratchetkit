@@ -1,26 +1,19 @@
-"""KEM backend interface for ExtendedTripleDiffieHellman and the Double Ratchet."""
-
+"""KEM / DH backend interface (agreement only)."""
 from __future__ import annotations
+
 
 from abc import ABC, abstractmethod
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from ratchetkit.algorithms.hash.base import HashAlgorithm
-    from ratchetkit.keys.keypair import (
-        KeyPair,
-        PrivateKey,
-        PublicKey,
-        SigningKeyPair,
-        SigningPrivateKey,
-        SigningPublicKey,
-    )
+    from ratchetkit.keys.keypair import KeyPair, PublicKey
+    from ratchetkit.suite.algs import KeyExchangeAlg
 
 
 class KemBackend(ABC):
-    """Key-encapsulation strategy used by ExtendedTripleDiffieHellman and the Double Ratchet."""
+    """Key encapsulation / DH for agreement keys. No signing."""
 
-    name: str
+    algorithm: KeyExchangeAlg
     supports_dh: bool = False
 
     @abstractmethod
@@ -28,36 +21,19 @@ class KemBackend(ABC):
         ...
 
     @abstractmethod
+    def derive_public(self, private: bytes) -> bytes:
+        """Public key bytes matching the given private/seed material."""
+
+    @abstractmethod
     def encapsulate(self, their_public: PublicKey) -> tuple[bytes, bytes]:
         """Return ``(shared_secret, ciphertext)``."""
 
     @abstractmethod
-    def decapsulate(self, our_private: PrivateKey, ciphertext: bytes) -> bytes:
+    def decapsulate(self, our_private: KeyPair, ciphertext: bytes) -> bytes:
         ...
 
-    @abstractmethod
-    def generate_signing_keypair(self) -> SigningKeyPair:
-        ...
-
-    @abstractmethod
-    def sign(
-        self,
-        private: SigningPrivateKey,
-        message: bytes,
-        digest: type[HashAlgorithm],
-    ) -> bytes:
-        ...
-
-    @abstractmethod
-    def verify(
-        self,
-        public: SigningPublicKey,
-        message: bytes,
-        signature: bytes,
-        digest: type[HashAlgorithm],
-    ) -> None:
-        """Raise :class:`~ratchetkit.errors.InvalidSignature` on failure."""
-
-    def dh(self, our_private: PrivateKey, their_public: PublicKey) -> bytes:
+    def dh(self, our_private: KeyPair, their_public: PublicKey) -> bytes:
         """Optional mutual DH. Only implemented by DH-capable backends."""
-        raise NotImplementedError(f"{self.name} does not support mutual DH")
+        raise NotImplementedError(
+            f"{self.algorithm.name} does not support mutual DH"
+        )

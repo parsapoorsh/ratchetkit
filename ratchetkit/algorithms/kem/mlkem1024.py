@@ -1,15 +1,14 @@
-"""ML-KEM-1024 + ML-DSA-87 (NIST category 5)."""
-
+"""ML-KEM-1024 (FIPS 203)."""
 from __future__ import annotations
 
-from cryptography.hazmat.primitives.asymmetric import mldsa, mlkem
+
+from cryptography.hazmat.primitives.asymmetric import mlkem
 
 from ratchetkit.algorithms.kem.mlkem_base import MlkemBackend
+from ratchetkit.suite.algs import KeyExchangeAlg
 
 
 class Mlkem1024(MlkemBackend):
-    name = "mlkem1024"
+    algorithm = KeyExchangeAlg.MLKEM1024
     kem_private_cls = mlkem.MLKEM1024PrivateKey
     kem_public_cls = mlkem.MLKEM1024PublicKey
-    dsa_private_cls = mldsa.MLDSA87PrivateKey
-    dsa_public_cls = mldsa.MLDSA87PublicKey

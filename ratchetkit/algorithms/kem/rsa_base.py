@@ -1,12 +1,12 @@
-"""Shared RSA-OAEP encapsulation + RSA-PSS signatures."""
-
+"""Shared RSA-OAEP encapsulation (agreement only)."""
 from __future__ import annotations
+
 
 import os
 from typing import TYPE_CHECKING
 
 from cryptography.hazmat.primitives import hashes, serialization
-from cryptography.hazmat.primitives.asymmetric import padding, rsa, utils
+from cryptography.hazmat.primitives.asymmetric import padding, rsa
 from cryptography.hazmat.primitives.serialization import (
     Encoding,
     NoEncryption,
@@ -14,25 +14,18 @@ from cryptography.hazmat.primitives.serialization import (
     PublicFormat,
 )
 
-from ratchetkit.errors import InvalidKey, InvalidSignature
+from ratchetkit.errors import InvalidKey
 from ratchetkit.algorithms.kem.base import KemBackend
-from ratchetkit.keys.keypair import (
-    KeyPair,
-    PrivateKey,
-    PublicKey,
-    SigningKeyPair,
-    SigningPrivateKey,
-    SigningPublicKey,
-)
+from ratchetkit.keys.keypair import KeyPair, PublicKey
 
 if TYPE_CHECKING:
-    from ratchetkit.algorithms.hash.base import HashAlgorithm
+    from ratchetkit.suite.algs import KeyExchangeAlg
 
 
 class RsaKem(KemBackend):
-    """RSA-OAEP encapsulation + RSA-PSS signatures backend base."""
+    """RSA-OAEP encapsulation backend base."""
 
-    name: str
+    algorithm: KeyExchangeAlg
     key_size: int
     supports_dh = False
     secret_size = 32
@@ -43,9 +36,12 @@ class RsaKem(KemBackend):
             key_size=self.key_size,
         )
         return KeyPair(
-            public=PublicKey(self.encode_public(private.public_key()), self.name),
-            private=PrivateKey(self.encode_private(private), self.name),
+            private=self.encode_private(private),
+            algorithm=self.algorithm,
         )
+
+    def derive_public(self, private: bytes) -> bytes:
+        return self.encode_public(self.decode_private(private).public_key())
 
     def encapsulate(self, their_public: PublicKey) -> tuple[bytes, bytes]:
         public = self.decode_public(their_public.data)
@@ -60,8 +56,8 @@ class RsaKem(KemBackend):
         )
         return secret, ciphertext
 
-    def decapsulate(self, our_private: PrivateKey, ciphertext: bytes) -> bytes:
-        private = self.decode_private(our_private.data)
+    def decapsulate(self, our_private: KeyPair, ciphertext: bytes) -> bytes:
+        private = self.decode_private(our_private.private)
         try:
             return private.decrypt(
                 ciphertext,
@@ -73,56 +69,6 @@ class RsaKem(KemBackend):
             )
         except Exception as exc:
             raise InvalidKey("RSA-OAEP decapsulation failed") from exc
-
-    def generate_signing_keypair(self) -> SigningKeyPair:
-        pair = self.generate_keypair()
-        return SigningKeyPair(
-            public=SigningPublicKey(pair.public.data, self.name),
-            private=SigningPrivateKey(pair.private.data, self.name),
-        )
-
-    def sign(
-        self,
-        private: SigningPrivateKey,
-        message: bytes,
-        digest: type[HashAlgorithm],
-    ) -> bytes:
-        key = self.decode_private(private.data)
-        algorithm = digest.hazmat()
-        hasher = hashes.Hash(algorithm)
-        hasher.update(message)
-        return key.sign(
-            hasher.finalize(),
-            padding.PSS(
-                mgf=padding.MGF1(algorithm),
-                salt_length=padding.PSS.MAX_LENGTH,
-            ),
-            utils.Prehashed(algorithm),
-        )
-
-    def verify(
-        self,
-        public: SigningPublicKey,
-        message: bytes,
-        signature: bytes,
-        digest: type[HashAlgorithm],
-    ) -> None:
-        key = self.decode_public(public.data)
-        algorithm = digest.hazmat()
-        hasher = hashes.Hash(algorithm)
-        hasher.update(message)
-        try:
-            key.verify(
-                signature,
-                hasher.finalize(),
-                padding.PSS(
-                    mgf=padding.MGF1(algorithm),
-                    salt_length=padding.PSS.MAX_LENGTH,
-                ),
-                utils.Prehashed(algorithm),
-            )
-        except Exception as exc:
-            raise InvalidSignature("RSA-PSS verification failed") from exc
 
     @staticmethod
     def encode_public(key: rsa.RSAPublicKey) -> bytes:
