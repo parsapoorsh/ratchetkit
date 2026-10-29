@@ -5,8 +5,8 @@ each application message carries a fixed-size piece. Reconstruction requires
 all ``n_chunks`` distinct indices (systematic identity code). Full Reed-Solomon
 erasure coding can replace this later without changing the SCKA interface.
 """
-
 from __future__ import annotations
+
 
 import math
 import struct

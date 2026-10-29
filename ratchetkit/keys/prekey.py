@@ -1,6 +1,6 @@
 """Signed prekeys, one-time prekeys, and published bundles."""
-
 from __future__ import annotations
+
 
 import struct
 from dataclasses import dataclass
@@ -15,9 +15,13 @@ from ratchetkit.keys.keypair import (
 )
 from ratchetkit.packing import (
     ConstructorId,
+    encode_u32,
     expect_constructor,
     pack_constructor,
+    read_u32,
 )
+from ratchetkit.suite.algs import KeyExchangeAlg, SigningAlg
+from ratchetkit.suite.registry import hash_backend
 
 if TYPE_CHECKING:
     from ratchetkit.algorithms.kem.base import KemBackend
@@ -34,20 +38,19 @@ class SignedPreKey:
     def signed_material(public: PublicKey) -> bytes:
         """Transcript bytes covered by the SPK signature.
 
-        Binds the algorithm label to the key bytes so a peer cannot relabel
+        Binds the algorithm id to the key bytes so a peer cannot relabel
         the same point as a different primitive.
         """
-        algorithm = public.algorithm.encode("ascii")
-        return struct.pack(">H", len(algorithm)) + algorithm + public.data
+        return encode_u32(int(public.algorithm)) + public.data
 
     @classmethod
     def generate(cls, key_id: int, identity: IdentityKeyPair) -> SignedPreKey:
         suite = identity.require_suite()
         pair = suite.kem.generate_keypair()
-        signature = suite.kem.sign(
-            identity.signing.private,
+        signature = suite.signer.sign(
+            identity.signing,
             cls.signed_material(pair.public),
-            suite.digest.impl,
+            hash_backend(suite.digest),
         )
         return cls(key_id=key_id, key_pair=pair, signature=signature)
 
@@ -87,8 +90,7 @@ class SignedPqPreKey:
     @staticmethod
     def signed_material(public: PublicKey) -> bytes:
         """Transcript bytes covered by the PQ prekey signature."""
-        algorithm = public.algorithm.encode("ascii")
-        return struct.pack(">H", len(algorithm)) + algorithm + public.data
+        return encode_u32(int(public.algorithm)) + public.data
 
     @classmethod
     def generate(
@@ -108,10 +110,10 @@ class SignedPqPreKey:
                     "pq_kem is required when the suite has no pq_key_exchange"
                 )
         pair = pq_kem.generate_keypair()
-        signature = suite.kem.sign(
-            identity.signing.private,
+        signature = suite.signer.sign(
+            identity.signing,
             cls.signed_material(pair.public),
-            suite.digest.impl,
+            hash_backend(suite.digest),
         )
         return cls(key_id=key_id, key_pair=pair, signature=signature)
 
@@ -132,40 +134,40 @@ class PreKeyBundle:
     pq_prekey_signature: bytes | None = None
 
     def verify(self, suite: CryptoSuite) -> None:
-        expected = suite.kem.name
-        if self.identity_signing.algorithm != expected:
+        if self.identity_signing.algorithm != suite.signing:
             raise InvalidSignature(
-                f"identity algorithm {self.identity_signing.algorithm!r} "
-                f"does not match suite {expected!r}"
+                f"identity signing algorithm {self.identity_signing.algorithm!r} "
+                f"does not match suite {suite.signing!r}"
             )
-        if self.signed_prekey.algorithm != expected:
+        expected_kx = suite.kem.algorithm
+        if self.signed_prekey.algorithm != expected_kx:
             raise InvalidSignature(
                 f"signed prekey algorithm {self.signed_prekey.algorithm!r} "
-                f"does not match suite {expected!r}"
+                f"does not match suite {expected_kx!r}"
             )
         if (
             self.identity_agreement is not None
-            and self.identity_agreement.algorithm != expected
+            and self.identity_agreement.algorithm != expected_kx
         ):
             raise InvalidSignature(
                 f"identity agreement algorithm "
                 f"{self.identity_agreement.algorithm!r} "
-                f"does not match suite {expected!r}"
+                f"does not match suite {expected_kx!r}"
             )
         if (
             self.one_time_prekey is not None
-            and self.one_time_prekey.algorithm != expected
+            and self.one_time_prekey.algorithm != expected_kx
         ):
             raise InvalidSignature(
                 f"one-time prekey algorithm {self.one_time_prekey.algorithm!r} "
-                f"does not match suite {expected!r}"
+                f"does not match suite {expected_kx!r}"
             )
         try:
-            suite.kem.verify(
+            suite.signer.verify(
                 self.identity_signing,
                 SignedPreKey.signed_material(self.signed_prekey),
                 self.signed_prekey_signature,
-                suite.digest.impl,
+                hash_backend(suite.digest),
             )
         except InvalidSignature:
             raise
@@ -185,11 +187,11 @@ class PreKeyBundle:
             ):
                 raise InvalidSignature("incomplete PQ prekey on bundle")
             try:
-                suite.kem.verify(
+                suite.signer.verify(
                     self.identity_signing,
                     SignedPqPreKey.signed_material(self.pq_prekey),
                     self.pq_prekey_signature,
-                    suite.digest.impl,
+                    hash_backend(suite.digest),
                 )
             except InvalidSignature:
                 raise
@@ -233,16 +235,14 @@ class PreKeyBundle:
         parts = [
             pack_constructor(self.CONSTRUCTOR_ID),
             self.encode_field(self.identity_signing.data),
-            self.encode_field(self.identity_signing.algorithm.encode("ascii")),
+            encode_u32(int(self.identity_signing.algorithm)),
         ]
         if self.identity_agreement is not None:
             parts.extend(
                 [
                     b"\x01",
                     self.encode_field(self.identity_agreement.data),
-                    self.encode_field(
-                        self.identity_agreement.algorithm.encode("ascii")
-                    ),
+                    encode_u32(int(self.identity_agreement.algorithm)),
                 ]
             )
         else:
@@ -251,7 +251,7 @@ class PreKeyBundle:
             [
                 struct.pack(">I", self.signed_prekey_id),
                 self.encode_field(self.signed_prekey.data),
-                self.encode_field(self.signed_prekey.algorithm.encode("ascii")),
+                encode_u32(int(self.signed_prekey.algorithm)),
                 self.encode_field(self.signed_prekey_signature),
             ]
         )
@@ -263,9 +263,7 @@ class PreKeyBundle:
                     b"\x01",
                     struct.pack(">I", self.one_time_prekey_id or 0),
                     self.encode_field(self.one_time_prekey.data),
-                    self.encode_field(
-                        self.one_time_prekey.algorithm.encode("ascii")
-                    ),
+                    encode_u32(int(self.one_time_prekey.algorithm)),
                 ]
             )
         if self.pq_prekey is None:
@@ -276,7 +274,7 @@ class PreKeyBundle:
                     b"\x01",
                     struct.pack(">I", self.pq_prekey_id or 0),
                     self.encode_field(self.pq_prekey.data),
-                    self.encode_field(self.pq_prekey.algorithm.encode("ascii")),
+                    encode_u32(int(self.pq_prekey.algorithm)),
                     self.encode_field(self.pq_prekey_signature or b""),
                 ]
             )
@@ -290,23 +288,23 @@ class PreKeyBundle:
         offset = expect_constructor(view, cls.CONSTRUCTOR_ID)
 
         identity_data, offset = cls.read_field(view, offset)
-        identity_alg, offset = cls.read_field(view, offset)
+        identity_alg_id, offset = read_u32(view, offset)
         has_agreement = view[offset]
         offset += 1
         identity_agreement = None
         if has_agreement:
             agreement_data, offset = cls.read_field(view, offset)
-            agreement_alg, offset = cls.read_field(view, offset)
+            agreement_alg_id, offset = read_u32(view, offset)
             identity_agreement = PublicKey(
                 agreement_data,
-                agreement_alg.decode("ascii"),
+                KeyExchangeAlg.from_id(agreement_alg_id),
             )
         if offset + 4 > len(view):
             raise SerializationError("truncated signed prekey id")
         signed_prekey_id = struct.unpack_from(">I", view, offset)[0]
         offset += 4
         spk_data, offset = cls.read_field(view, offset)
-        spk_alg, offset = cls.read_field(view, offset)
+        spk_alg_id, offset = read_u32(view, offset)
         signature, offset = cls.read_field(view, offset)
         has_opk = view[offset]
         offset += 1
@@ -318,8 +316,8 @@ class PreKeyBundle:
             one_time_id = struct.unpack_from(">I", view, offset)[0]
             offset += 4
             opk_data, offset = cls.read_field(view, offset)
-            opk_alg, offset = cls.read_field(view, offset)
-            one_time = PublicKey(opk_data, opk_alg.decode("ascii"))
+            opk_alg_id, offset = read_u32(view, offset)
+            one_time = PublicKey(opk_data, KeyExchangeAlg.from_id(opk_alg_id))
         pq_prekey = None
         pq_prekey_id = None
         pq_prekey_signature = None
@@ -333,19 +331,19 @@ class PreKeyBundle:
                 pq_prekey_id = struct.unpack_from(">I", view, offset)[0]
                 offset += 4
                 pq_data, offset = cls.read_field(view, offset)
-                pq_alg, offset = cls.read_field(view, offset)
+                pq_alg_id, offset = read_u32(view, offset)
                 pq_prekey_signature, offset = cls.read_field(view, offset)
-                pq_prekey = PublicKey(pq_data, pq_alg.decode("ascii"))
+                pq_prekey = PublicKey(pq_data, KeyExchangeAlg.from_id(pq_alg_id))
         if offset != len(view):
             raise SerializationError("trailing bytes in prekey bundle")
         return cls(
             identity_signing=SigningPublicKey(
                 identity_data,
-                identity_alg.decode("ascii"),
+                SigningAlg.from_id(identity_alg_id),
             ),
             identity_agreement=identity_agreement,
             signed_prekey_id=signed_prekey_id,
-            signed_prekey=PublicKey(spk_data, spk_alg.decode("ascii")),
+            signed_prekey=PublicKey(spk_data, KeyExchangeAlg.from_id(spk_alg_id)),
             signed_prekey_signature=signature,
             one_time_prekey_id=one_time_id,
             one_time_prekey=one_time,

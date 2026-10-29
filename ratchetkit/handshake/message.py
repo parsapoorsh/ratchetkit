@@ -1,13 +1,16 @@
 """Initial handshake messages carried from initiator to responder."""
-
 from __future__ import annotations
+
 
 import struct
 from dataclasses import dataclass
 
 from ratchetkit.errors import SerializationError
+from ratchetkit.suite.algs import KeyExchangeAlg, SigningAlg
 from ratchetkit.keys.keypair import PublicKey, SigningPublicKey
 from ratchetkit.packing import (
+    encode_u32,
+    read_u32,
     ConstructorId,
     expect_constructor,
     pack_constructor,
@@ -35,16 +38,14 @@ class InitialMessageX3DH:
         """Serialize fields after the constructor id."""
         parts = [
             self.encode_field(self.identity_signing.data),
-            self.encode_field(self.identity_signing.algorithm.encode("ascii")),
+            encode_u32(int(self.identity_signing.algorithm)),
         ]
         if self.identity_agreement is not None:
             parts.extend(
                 [
                     b"\x01",
                     self.encode_field(self.identity_agreement.data),
-                    self.encode_field(
-                        self.identity_agreement.algorithm.encode("ascii")
-                    ),
+                    encode_u32(int(self.identity_agreement.algorithm)),
                 ]
             )
         else:
@@ -52,7 +53,7 @@ class InitialMessageX3DH:
         parts.extend(
             [
                 self.encode_field(self.ephemeral_public.data),
-                self.encode_field(self.ephemeral_public.algorithm.encode("ascii")),
+                encode_u32(int(self.ephemeral_public.algorithm)),
                 bytes([len(self.kem_ciphertexts)]),
             ]
         )
@@ -77,21 +78,19 @@ class InitialMessageX3DH:
     def decode_body(cls, view: memoryview, offset: int) -> tuple[dict, int]:
         """Parse X3DH fields starting at ``offset``; return kwargs and new offset."""
         identity_data, offset = cls.read_field(view, offset)
-        identity_alg, offset = cls.read_field(view, offset)
-        identity_alg = identity_alg.decode("ascii")
+        identity_alg_id, offset = read_u32(view, offset)
         has_agreement = view[offset]
         offset += 1
         identity_agreement = None
         if has_agreement:
             agreement_data, offset = cls.read_field(view, offset)
-            agreement_alg, offset = cls.read_field(view, offset)
+            agreement_alg_id, offset = read_u32(view, offset)
             identity_agreement = PublicKey(
                 agreement_data,
-                agreement_alg.decode("ascii"),
+                KeyExchangeAlg.from_id(agreement_alg_id),
             )
         ephemeral_data, offset = cls.read_field(view, offset)
-        ephemeral_alg, offset = cls.read_field(view, offset)
-        ephemeral_alg = ephemeral_alg.decode("ascii")
+        ephemeral_alg_id, offset = read_u32(view, offset)
         ct_count = view[offset]
         offset += 1
         ciphertexts = []
@@ -119,9 +118,9 @@ class InitialMessageX3DH:
         if has_ratchet:
             ratchet_public, offset = cls.read_field(view, offset)
         fields = dict(
-            identity_signing=SigningPublicKey(identity_data, identity_alg),
+            identity_signing=SigningPublicKey(identity_data, SigningAlg.from_id(identity_alg_id)),
             identity_agreement=identity_agreement,
-            ephemeral_public=PublicKey(ephemeral_data, ephemeral_alg),
+            ephemeral_public=PublicKey(ephemeral_data, KeyExchangeAlg.from_id(ephemeral_alg_id)),
             kem_ciphertexts=tuple(ciphertexts),
             signed_prekey_id=signed_prekey_id,
             one_time_prekey_id=one_time_prekey_id,

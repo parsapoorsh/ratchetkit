@@ -1,6 +1,6 @@
 """Classical Double Ratchet message encoding."""
-
 from __future__ import annotations
+
 
 import struct
 from dataclasses import dataclass

@@ -1,6 +1,6 @@
 """Ratchet header payload encoding (DH public or KEM public+CT)."""
-
 from __future__ import annotations
+
 
 import struct
 

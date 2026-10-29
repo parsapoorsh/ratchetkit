@@ -1,6 +1,6 @@
 """High-level Session: X3DH/PQXDH handshake wired into Double or Triple Ratchet."""
-
 from __future__ import annotations
+
 
 from ratchetkit.errors import SerializationError
 from ratchetkit.keys.identity import IdentityKeyPair
@@ -119,7 +119,7 @@ class Session:
         if initial.ratchet_public is None:
             raise ValueError("initial message missing ratchet public")
 
-        their_ratchet = PublicKey(initial.ratchet_public, suite.kem.name)
+        their_ratchet = PublicKey(initial.ratchet_public, suite.kem.algorithm)
         first_header = None
         if not suite.kem.supports_dh:
             if isinstance(message, TripleRatchetMessage):
@@ -133,8 +133,7 @@ class Session:
                 suite,
                 shared,
                 their_ratchet,
-                our_signed_prekey.key_pair.private,
-                our_signed_prekey.key_pair.public,
+                our_signed_prekey.key_pair,
                 suite.pq_kem,
                 n_chunks=suite.scka_chunks,
                 first_header=first_header,
@@ -144,8 +143,7 @@ class Session:
                 suite,
                 shared,
                 their_ratchet,
-                our_signed_prekey.key_pair.private,
-                our_signed_prekey.key_pair.public,
+                our_signed_prekey.key_pair,
                 first_header=first_header,
             )
 

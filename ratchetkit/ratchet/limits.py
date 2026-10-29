@@ -1,6 +1,6 @@
 """Double Ratchet safety limits (from libsignal consts.rs)."""
-
 from __future__ import annotations
+
 
 from dataclasses import dataclass
 

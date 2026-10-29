@@ -1,11 +1,12 @@
 """HKDF and HMAC helpers over pluggable hash algorithm classes."""
-
 from __future__ import annotations
+
 
 import hmac
 from typing import TYPE_CHECKING
 
 from ratchetkit.suite import HashAlg
+from ratchetkit.suite.registry import hash_backend
 
 if TYPE_CHECKING:
     from ratchetkit.algorithms.hash.base import HashAlgorithm
@@ -16,7 +17,7 @@ class Kdf:
 
     def __init__(self, digest: HashAlg | type[HashAlgorithm]):
         if isinstance(digest, HashAlg):
-            self.hash_cls = digest.impl
+            self.hash_cls = hash_backend(digest)
         else:
             self.hash_cls = digest
 

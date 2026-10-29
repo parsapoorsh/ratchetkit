@@ -1,6 +1,8 @@
 """Per-message cipher / MAC / IV material."""
-
 from __future__ import annotations
+
+from ratchetkit.suite.registry import cipher_backend, hash_backend
+
 
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
@@ -33,8 +35,8 @@ class MessageKeys:
 
     @classmethod
     def derive(cls, seed: bytes, counter: int, suite: CryptoSuite) -> MessageKeys:
-        cipher = suite.cipher.impl
-        digest = suite.digest.impl
+        cipher = cipher_backend(suite.cipher)
+        digest = hash_backend(suite.digest)
         key_size = cipher.key_size
         mac_size = digest.digest_size
         iv_size = cipher.iv_size()
@@ -58,10 +60,10 @@ class MessageKeys:
         )
 
     def encrypt(self, plaintext: bytes, suite: CryptoSuite) -> bytes:
-        return suite.cipher.impl.encrypt(self.cipher_key, self.iv, plaintext)
+        return cipher_backend(suite.cipher).encrypt(self.cipher_key, self.iv, plaintext)
 
     def decrypt(self, ciphertext: bytes, suite: CryptoSuite) -> bytes:
-        return suite.cipher.impl.decrypt(self.cipher_key, self.iv, ciphertext)
+        return cipher_backend(suite.cipher).decrypt(self.cipher_key, self.iv, ciphertext)
 
     def to_bytes(self) -> bytes:
         return (

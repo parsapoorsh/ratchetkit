@@ -9,8 +9,8 @@ Turn discipline (like the classical DH ratchet):
   - Roles swap after each completed exchange so both sides share one secret
     per epoch - never two concurrent encapsulations into the same epoch.
 """
-
 from __future__ import annotations
+
 
 import struct
 from dataclasses import dataclass, field
@@ -238,7 +238,7 @@ class ChunkedKemScka:
         kind, body = self.decode_payload(payload)
         if kind == 0:
             public = self.read_length_prefixed(body)
-            self.their_public = PublicKey(public, self.kem.name)
+            self.their_public = PublicKey(public, self.kem.algorithm)
             return None
         if kind == 1:
             ciphertext, rest = self.read_length_prefixed_rest(body)
@@ -246,12 +246,12 @@ class ChunkedKemScka:
             if self.our_key is None:
                 raise InvalidKey("SCKA decapsulate without local private key")
             try:
-                secret = self.kem.decapsulate(self.our_key.private, ciphertext)
+                secret = self.kem.decapsulate(self.our_key, ciphertext)
             except Exception as exc:
                 raise InvalidKey("SCKA KEM decapsulation failed") from exc
             if not any(secret):
                 raise InvalidKey("SCKA shared secret is all zeros")
-            self.their_public = PublicKey(peer_public, self.kem.name)
+            self.their_public = PublicKey(peer_public, self.kem.algorithm)
             return secret
         raise InvalidMessage(f"unknown SCKA payload kind {kind}")
 

@@ -1,6 +1,6 @@
 """Ratchet message ABC and shared wire-field helpers."""
-
 from __future__ import annotations
+
 
 import struct
 from abc import ABC, abstractmethod

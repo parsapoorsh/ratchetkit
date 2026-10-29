@@ -1,13 +1,15 @@
 """Triple Ratchet: classical Double Ratchet + Sparse PQ Ratchet (DR §6)."""
-
 from __future__ import annotations
+
+from ratchetkit.suite.registry import hash_backend
+
 
 import hmac
 from typing import TYPE_CHECKING
 
 from ratchetkit.errors import InvalidMessage, SerializationError
 from ratchetkit.kdf import Kdf
-from ratchetkit.keys.keypair import KeyPair, PrivateKey, PublicKey
+from ratchetkit.keys.keypair import KeyPair, PublicKey
 from ratchetkit.keys.message import MessageKeys
 from ratchetkit.packing import (
     ConstructorId,
@@ -88,8 +90,7 @@ class TripleRatchet(Ratchet):
         suite: CryptoSuite,
         shared_secret: bytes,
         their_ratchet_public: PublicKey,
-        our_ratchet_private: PrivateKey,
-        our_ratchet_public: PublicKey | None,
+        our_ratchet_key: KeyPair,
         pq_kem: KemBackend,
         n_chunks: int = 8,
         limits: RatchetLimits | None = None,
@@ -100,8 +101,7 @@ class TripleRatchet(Ratchet):
             suite,
             sk_ec,
             their_ratchet_public,
-            our_ratchet_private,
-            our_ratchet_public,
+            our_ratchet_key,
             first_header=first_header,
         )
         if limits is not None:
@@ -119,7 +119,7 @@ class TripleRatchet(Ratchet):
     @staticmethod
     def split_sk(suite: CryptoSuite, sk: bytes) -> tuple[bytes, bytes]:
         """Expand handshake SK into SKec and SKscka (spec §7.1)."""
-        size = suite.digest.impl.digest_size
+        size = hash_backend(suite.digest).digest_size
         kdf = Kdf(suite.digest)
         material = kdf.hkdf(
             sk,
@@ -131,7 +131,7 @@ class TripleRatchet(Ratchet):
 
     def hybrid_message_key(self, ec_mk: bytes, pq_mk: bytes) -> bytes:
         """KDF_HYBRID(ec_mk, pq_mk) -> seed for MessageKeys.derive."""
-        size = self.suite.digest.impl.digest_size
+        size = hash_backend(self.suite.digest).digest_size
         return self.kdf.hkdf(
             ec_mk,
             size,

@@ -1,15 +1,16 @@
 """Root key: DH/KEM ratchet step into a new root + chain key."""
-
 from __future__ import annotations
+
 
 from typing import TYPE_CHECKING
 
 from ratchetkit.errors import InvalidKey, SerializationError
 from ratchetkit.kdf import Kdf
 from ratchetkit.keys.chain import ChainKey
-from ratchetkit.keys.keypair import PrivateKey, PublicKey
+from ratchetkit.keys.keypair import KeyPair, PublicKey
 from ratchetkit.packing import encode_bytes, read_bytes
 from ratchetkit.suite import KdfLabel
+from ratchetkit.suite.registry import hash_backend
 
 if TYPE_CHECKING:
     from ratchetkit.suite import CryptoSuite
@@ -19,7 +20,7 @@ class RootKey:
     """Root key advanced on each DH/KEM ratchet step."""
 
     def __init__(self, key: bytes, suite: CryptoSuite):
-        expected = suite.digest.impl.digest_size
+        expected = hash_backend(suite.digest).digest_size
         if not isinstance(key, (bytes, bytearray)) or len(key) != expected:
             raise InvalidKey(
                 f"root key must be {expected} bytes, got "
@@ -34,7 +35,7 @@ class RootKey:
     def create_chain(
         self,
         their_public: PublicKey,
-        our_private: PrivateKey,
+        our_private: KeyPair,
     ) -> tuple[RootKey, ChainKey]:
         """DH shared secret -> (new RootKey, ChainKey).
 
@@ -44,7 +45,8 @@ class RootKey:
         kem = self.suite.kem
         if not kem.supports_dh:
             raise TypeError(
-                f"{kem.name} is KEM-only; use create_chain_send/create_chain_recv"
+                f"{kem.algorithm.name} is KEM-only; "
+                "use create_chain_send/create_chain_recv"
             )
         shared = kem.dh(our_private, their_public)
         return self.create_chain_from_secret(shared)
@@ -60,7 +62,7 @@ class RootKey:
 
     def create_chain_recv(
         self,
-        our_private: PrivateKey,
+        our_private: KeyPair,
         ciphertext: bytes,
     ) -> tuple[RootKey, ChainKey]:
         """KEM decapsulate ``ciphertext`` -> (root, chain)."""
@@ -77,7 +79,7 @@ class RootKey:
             raise InvalidKey("DH/KEM shared secret is missing or empty")
         if not any(shared):
             raise InvalidKey("DH/KEM shared secret is all zeros")
-        size = self.suite.digest.impl.digest_size
+        size = hash_backend(self.suite.digest).digest_size
         material = self.kdf.hkdf(
             bytes(shared),
             size + size,

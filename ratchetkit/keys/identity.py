@@ -1,6 +1,6 @@
 """Long-lived identity key pair (signing + optional DH)."""
-
 from __future__ import annotations
+
 
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
@@ -17,6 +17,8 @@ class IdentityKeyPair:
 
     ``suite`` is the crypto this identity was minted for; handshake APIs
     take it from here so callers do not pass the suite again.
+
+    Signing and agreement are separate key pairs (separate algorithms).
     """
 
     signing: SigningKeyPair
@@ -25,9 +27,8 @@ class IdentityKeyPair:
 
     @classmethod
     def generate(cls, suite: CryptoSuite) -> IdentityKeyPair:
-        kem = suite.kem
-        signing = kem.generate_signing_keypair()
-        agreement = kem.generate_keypair() if kem.supports_dh else None
+        signing = suite.signer.generate_keypair()
+        agreement = suite.kem.generate_keypair() if suite.kem.supports_dh else None
         return cls(signing=signing, agreement=agreement, suite=suite)
 
     def require_suite(self) -> CryptoSuite:

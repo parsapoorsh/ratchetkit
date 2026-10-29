@@ -1,6 +1,6 @@
 """Skipped message-key cache for out-of-order delivery."""
-
 from __future__ import annotations
+
 
 from typing import TYPE_CHECKING
 
