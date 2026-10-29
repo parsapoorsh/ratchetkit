@@ -88,11 +88,18 @@ class EpochChains:
 
 @dataclass
 class SpqrHeader:
-    """Sparse PQ ratchet header: SCKA body + message counter."""
+    """Sparse PQ ratchet header: SCKA body + epoch/period counters.
+
+    Layout mirrors paper TR hQ fields used for skip bookkeeping:
+    ``t_s`` (sending key epoch), ``i_s_prev2`` / ``i_s_prev`` (periods in
+    the two prior sending epochs), and ``counter`` (period in ``t_s``).
+    """
 
     scka_msg: bytes
     counter: int
+    t_s: int = 0
     previous_counter: int = 0
+    previous2_counter: int = 0
 
     def to_bytes(self) -> bytes:
         if len(self.scka_msg) > 0xFFFF:
@@ -100,26 +107,37 @@ class SpqrHeader:
         return (
             struct.pack(">H", len(self.scka_msg))
             + self.scka_msg
-            + struct.pack(">II", self.previous_counter, self.counter)
+            + struct.pack(
+                ">IIII",
+                self.t_s & 0xFFFFFFFF,
+                self.previous2_counter & 0xFFFFFFFF,
+                self.previous_counter & 0xFFFFFFFF,
+                self.counter & 0xFFFFFFFF,
+            )
         )
 
     @classmethod
     def from_bytes(cls, data: bytes) -> SpqrHeader:
-        if len(data) < 2 + 8:
+        # len(2) + body + t_s/prev2/prev/counter (16)
+        if len(data) < 2 + 16:
             raise InvalidMessage("truncated SPQR header")
         length = struct.unpack_from(">H", data, 0)[0]
         offset = 2
-        if offset + length + 8 != len(data):
-            # Allow exact parse of the header region only.
-            if offset + length + 8 > len(data):
-                raise InvalidMessage("truncated SPQR header body")
+        if offset + length + 16 > len(data):
+            raise InvalidMessage("truncated SPQR header body")
         scka_msg = data[offset:offset + length]
         offset += length
-        previous_counter, counter = struct.unpack_from(">II", data, offset)
+        t_s, previous2_counter, previous_counter, counter = struct.unpack_from(
+            ">IIII",
+            data,
+            offset,
+        )
         return cls(
             scka_msg=scka_msg,
             counter=counter,
+            t_s=t_s,
             previous_counter=previous_counter,
+            previous2_counter=previous2_counter,
         )
 
     def header_bytes(self) -> bytes:
@@ -127,7 +145,17 @@ class SpqrHeader:
 
 
 class SparsePostQuantumRatchet(Constructor):
-    """Secure messaging ratchet driven by an SCKA (DR §5)."""
+    """Secure messaging ratchet driven by an SCKA (DR §5 / ePrint 2025/078).
+
+    Scheduling (paper Table 1):
+      t_curr  — CKA epoch currently being exchanged (may lead t_s)
+      t_s     — epoch under which we encrypt outgoing messages
+      t_r     — epoch under which we decrypt incoming messages
+    Keys for epoch e are mixed into the root as soon as SCKA produces them
+    (sender at first drip chunk; receiver after full reconstruction), but
+    ``t_s`` only advances once the peer is known to hold enough chunks
+    (cAck + 1 >= n_chunks) or once reconstruction finishes on our side.
+    """
 
     def __init__(
         self,
@@ -136,10 +164,15 @@ class SparsePostQuantumRatchet(Constructor):
         scka: ChunkedKemScka,
         direction: int,
         chains: dict[int, EpochChains] | None = None,
-        epoch: int = 0,
-        sending_epoch: int = 0,
-        receiving_epoch: int = 0,
+        # Highest epoch whose SCKA secret has been mixed into the root.
+        mixed_epoch: int = 0,
+        # Paper tS / tR / tCurr.
+        t_s: int = 0,
+        t_r: int = 0,
+        t_curr: int = 0,
+        # Periods of the last two sealed sending epochs (iS-1, iS-2).
         previous_counter: int = 0,
+        previous2_counter: int = 0,
         skipped: dict[tuple[int, int], MessageKeys] | None = None,
         skipped_order: list[tuple[int, int]] | None = None,
         limits: RatchetLimits | None = None,
@@ -149,10 +182,12 @@ class SparsePostQuantumRatchet(Constructor):
         self.scka = scka
         self.direction = direction
         self.chains = chains if chains is not None else {}
-        self.epoch = epoch
-        self.sending_epoch = sending_epoch
-        self.receiving_epoch = receiving_epoch
+        self.mixed_epoch = mixed_epoch
+        self.t_s = t_s
+        self.t_r = t_r
+        self.t_curr = t_curr
         self.previous_counter = previous_counter
+        self.previous2_counter = previous2_counter
         self.skipped = skipped if skipped is not None else {}
         self.limits = limits or RatchetLimits()
         self.kdf = Kdf(suite.digest)
@@ -160,6 +195,19 @@ class SparsePostQuantumRatchet(Constructor):
             self.skipped_order = list(skipped_order)
         else:
             self.skipped_order = list(self.skipped.keys())
+
+    # Back-compat aliases used by compromise tests / examples.
+    @property
+    def epoch(self) -> int:
+        return self.mixed_epoch
+
+    @property
+    def sending_epoch(self) -> int:
+        return self.t_s
+
+    @property
+    def receiving_epoch(self) -> int:
+        return self.t_r
 
     @classmethod
     def initiate(
@@ -236,9 +284,14 @@ class SparsePostQuantumRatchet(Constructor):
         return material[:size], material[size:size * 2], material[size * 2:]
 
     def install_epoch(self, key_epoch: int, key: bytes) -> None:
-        if key_epoch != self.epoch + 1:
+        """Mix SCKA secret into root and stage send/recv chains for ``key_epoch``.
+
+        Does not advance ``t_s`` / ``t_r``; callers activate those once the peer
+        can decrypt (ack threshold or full reconstruction).
+        """
+        if key_epoch != self.mixed_epoch + 1:
             raise InvalidMessage(
-                f"SCKA epoch jump: have {self.epoch}, got {key_epoch}"
+                f"SCKA epoch jump: have {self.mixed_epoch}, got {key_epoch}"
             )
         root, ck_send, ck_recv = self.kdf_rk(key)
         if self.direction == DIR_B2A:
@@ -248,36 +301,67 @@ class SparsePostQuantumRatchet(Constructor):
             send=ChainKey(ck_send, 0, self.suite),
             receive=ChainKey(ck_recv, 0, self.suite),
         )
-        self.epoch = key_epoch
+        self.mixed_epoch = key_epoch
+        self.t_curr = max(self.t_curr, key_epoch)
         self.clear_old_epochs(key_epoch)
 
     def clear_old_epochs(self, current: int) -> None:
-        """Drop chains and skipped keys older than current - 1 (spec §5.7)."""
-        stale = [ep for ep in self.chains if ep < current - 1]
+        """Drop chains and skipped keys older than current - 2 (two prior epochs)."""
+        # Keep current and the two previous epochs for skip recovery (iS-1, iS-2).
+        stale = [ep for ep in self.chains if ep < current - 2]
         for ep in stale:
             del self.chains[ep]
-        stale_skip = [key for key in self.skipped if key[0] < current - 1]
+        stale_skip = [key for key in self.skipped if key[0] < current - 2]
         for key in stale_skip:
             self.skipped.pop(key, None)
             if key in self.skipped_order:
                 self.skipped_order.remove(key)
 
+    def activate_send_epoch(self, target: int) -> None:
+        """Advance t_s to ``target`` (paper: start using next KS)."""
+        if target <= self.t_s:
+            return
+        if target not in self.chains or self.chains[target].send is None:
+            raise InvalidMessage(
+                f"SPQR cannot activate send epoch {target}: chain missing"
+            )
+        # Seal prior sending chain and shift period history (iS -> iS-1 -> iS-2).
+        # previous_counter is the last counter used on the sealed chain (PN),
+        # matching Double Ratchet / libsignal semantics.
+        old = self.chains.get(self.t_s)
+        if old is not None and old.send is not None:
+            index = old.send.index
+            sealed_last = index - 1 if index > 0 else 0
+            self.previous2_counter = self.previous_counter
+            self.previous_counter = sealed_last
+            old.send = None
+        self.t_s = target
+
+    def try_activate_send_from_ack(self) -> None:
+        """Paper TR-Send: if t_s < t_curr and cAck+1 >= n_chunks, start using KS."""
+        if self.t_s >= self.t_curr:
+            return
+        if self.t_curr not in self.chains:
+            return
+        # peer_ack is chunks the peer has stored of our outbound payload.
+        if self.scka.peer_ack + 1 < self.scka.n_chunks:
+            return
+        self.activate_send_epoch(self.t_curr)
+
     def send_key(self) -> tuple[MessageKeys, SpqrHeader]:
         """Advance SCKA + send chain; return message keys and SPQR header."""
         result = self.scka.send()
-        if result.output_key is not None:
-            self.install_epoch(result.output_key.epoch, result.output_key.key)
+        if result.mix_key is not None:
+            self.install_epoch(result.mix_key.epoch, result.mix_key.key)
 
-        sending_epoch = result.sending_epoch
-        if sending_epoch > self.sending_epoch:
-            # Seal previous sending chain.
-            old = self.chains.get(self.sending_epoch)
-            if old is not None and old.send is not None:
-                self.previous_counter = old.send.index
-                old.send = None
-            self.sending_epoch = sending_epoch
+        # t_curr tracks the CKA epoch being exchanged (may lead t_s).
+        if result.cka_epoch > self.t_curr:
+            self.t_curr = result.cka_epoch
 
-        chains = self.chains.get(sending_epoch)
+        # Early activation: peer has acknowledged enough chunks (cAck+1 >= n).
+        self.try_activate_send_from_ack()
+
+        chains = self.chains.get(self.t_s)
         if chains is None or chains.send is None:
             raise InvalidMessage("SPQR missing sending chain for epoch")
 
@@ -285,7 +369,9 @@ class SparsePostQuantumRatchet(Constructor):
         header = SpqrHeader(
             scka_msg=result.msg,
             counter=keys.counter,
+            t_s=self.t_s,
             previous_counter=self.previous_counter,
+            previous2_counter=self.previous2_counter,
         )
         chains.send = chains.send.next_chain_key()
         return keys, header
@@ -295,31 +381,79 @@ class SparsePostQuantumRatchet(Constructor):
 
         Does not verify MAC or decrypt. Standalone decrypt does both after this;
         Triple hybrid verifies a combined MAC instead.
+
+        ``header.t_s`` is the epoch under which the peer encrypted (paper t in
+        hQ). We may skip sealed epochs using ``previous_counter`` /
+        ``previous2_counter`` (iS-1 / iS-2) when the peer advanced.
         """
+        msg_epoch = header.t_s
+        if msg_epoch > self.t_r + 2:
+            raise TooFarInFuture(
+                self.t_r,
+                msg_epoch,
+                2,
+            )
+
         recv = self.scka.receive(header.scka_msg)
-        if recv.output_key is not None:
-            self.install_epoch(recv.output_key.epoch, recv.output_key.key)
+        if recv.mix_key is not None:
+            self.install_epoch(recv.mix_key.epoch, recv.mix_key.key)
+            # We reconstructed the peer's CKA payload: start using it for send.
+            # Paper TR-Rec lines 34-36: tS <- tCurr when cR >= n_chunk.
+            if self.t_s < recv.mix_key.epoch:
+                self.activate_send_epoch(recv.mix_key.epoch)
 
-        receiving_epoch = recv.receiving_epoch
-        if receiving_epoch > self.receiving_epoch:
-            old = self.chains.get(self.receiving_epoch)
-            if old is not None and old.receive is not None:
-                self.skip_in_epoch(
-                    self.receiving_epoch,
-                    old.receive,
-                    header.previous_counter + 1,
-                )
-                old.receive = None
-            self.receiving_epoch = receiving_epoch
+        if recv.cka_epoch > self.t_curr:
+            self.t_curr = recv.cka_epoch
 
-        skipped = self.skipped.get((receiving_epoch, header.counter))
+        # Peer encrypts under a key we already mixed as sender: activate t_s.
+        if msg_epoch > self.t_s and msg_epoch <= self.mixed_epoch:
+            self.activate_send_epoch(msg_epoch)
+
+        # Peer ack of our outbound chunks may unlock early t_s (cAck+1 >= n).
+        self.try_activate_send_from_ack()
+
+        # Advance t_r toward msg_epoch, storing skipped keys on sealed chains.
+        # PN is inclusive last counter; skip through PN+1 exclusive (DR style).
+        if msg_epoch > self.t_r:
+            jump = msg_epoch - self.t_r
+            if jump >= 2:
+                # Seal t_r fully via iS-2, then t_r+1 via iS-1.
+                old = self.chains.get(self.t_r)
+                if old is not None and old.receive is not None:
+                    self.skip_in_epoch(
+                        self.t_r,
+                        old.receive,
+                        header.previous2_counter + 1,
+                    )
+                    old.receive = None
+                mid = self.t_r + 1
+                mid_chain = self.chains.get(mid)
+                if mid_chain is not None and mid_chain.receive is not None:
+                    self.skip_in_epoch(
+                        mid,
+                        mid_chain.receive,
+                        header.previous_counter + 1,
+                    )
+                    mid_chain.receive = None
+            else:
+                old = self.chains.get(self.t_r)
+                if old is not None and old.receive is not None:
+                    self.skip_in_epoch(
+                        self.t_r,
+                        old.receive,
+                        header.previous_counter + 1,
+                    )
+                    old.receive = None
+            self.t_r = msg_epoch
+
+        skipped = self.skipped.get((msg_epoch, header.counter))
         if skipped is not None:
-            self.skipped.pop((receiving_epoch, header.counter), None)
-            if (receiving_epoch, header.counter) in self.skipped_order:
-                self.skipped_order.remove((receiving_epoch, header.counter))
+            self.skipped.pop((msg_epoch, header.counter), None)
+            if (msg_epoch, header.counter) in self.skipped_order:
+                self.skipped_order.remove((msg_epoch, header.counter))
             return skipped
 
-        chains = self.chains.get(receiving_epoch)
+        chains = self.chains.get(msg_epoch)
         if chains is None or chains.receive is None:
             raise InvalidMessage("SPQR missing receiving chain for epoch")
 
@@ -327,7 +461,7 @@ class SparsePostQuantumRatchet(Constructor):
             raise DuplicateMessage(chains.receive.index, header.counter)
 
         chains.receive = self.skip_in_epoch(
-            receiving_epoch,
+            msg_epoch,
             chains.receive,
             header.counter,
         )
@@ -441,10 +575,12 @@ class SparsePostQuantumRatchet(Constructor):
             scka=self.scka.clone(),
             direction=self.direction,
             chains=chains,
-            epoch=self.epoch,
-            sending_epoch=self.sending_epoch,
-            receiving_epoch=self.receiving_epoch,
+            mixed_epoch=self.mixed_epoch,
+            t_s=self.t_s,
+            t_r=self.t_r,
+            t_curr=self.t_curr,
             previous_counter=self.previous_counter,
+            previous2_counter=self.previous2_counter,
             skipped=dict(self.skipped),
             skipped_order=self.skipped_order,
             limits=self.limits,
@@ -455,10 +591,12 @@ class SparsePostQuantumRatchet(Constructor):
         self.scka = other.scka
         self.direction = other.direction
         self.chains = other.chains
-        self.epoch = other.epoch
-        self.sending_epoch = other.sending_epoch
-        self.receiving_epoch = other.receiving_epoch
+        self.mixed_epoch = other.mixed_epoch
+        self.t_s = other.t_s
+        self.t_r = other.t_r
+        self.t_curr = other.t_curr
         self.previous_counter = other.previous_counter
+        self.previous2_counter = other.previous2_counter
         self.skipped = other.skipped
         self.skipped_order = other.skipped_order
 
@@ -482,10 +620,12 @@ class SparsePostQuantumRatchet(Constructor):
                 self.constructor_pack(),
                 encode_bytes(self.root_key),
                 encode_u8(self.direction),
-                encode_u32(self.epoch),
-                encode_u32(self.sending_epoch),
-                encode_u32(self.receiving_epoch),
+                encode_u32(self.mixed_epoch),
+                encode_u32(self.t_s),
+                encode_u32(self.t_r),
+                encode_u32(self.t_curr),
                 encode_u32(self.previous_counter),
+                encode_u32(self.previous2_counter),
                 encode_bytes(self.limits.to_bytes()),
                 encode_bytes(self.scka.to_bytes()),
                 encode_bytes(b"".join(chain_parts)),
@@ -503,10 +643,12 @@ class SparsePostQuantumRatchet(Constructor):
         offset = cls.constructor_expect(data)
         root_key, offset = read_bytes(data, offset)
         direction, offset = read_u8(data, offset)
-        epoch, offset = read_u32(data, offset)
-        sending_epoch, offset = read_u32(data, offset)
-        receiving_epoch, offset = read_u32(data, offset)
+        mixed_epoch, offset = read_u32(data, offset)
+        t_s, offset = read_u32(data, offset)
+        t_r, offset = read_u32(data, offset)
+        t_curr, offset = read_u32(data, offset)
         previous_counter, offset = read_u32(data, offset)
+        previous2_counter, offset = read_u32(data, offset)
         limits_blob, offset = read_bytes(data, offset)
         scka_blob, offset = read_bytes(data, offset)
         chains_blob, offset = read_bytes(data, offset)
@@ -545,10 +687,12 @@ class SparsePostQuantumRatchet(Constructor):
             scka=ChunkedKemScka.from_bytes(scka_blob, pq_kem),
             direction=direction,
             chains=chains,
-            epoch=epoch,
-            sending_epoch=sending_epoch,
-            receiving_epoch=receiving_epoch,
+            mixed_epoch=mixed_epoch,
+            t_s=t_s,
+            t_r=t_r,
+            t_curr=t_curr,
             previous_counter=previous_counter,
+            previous2_counter=previous2_counter,
             skipped=skipped,
             limits=RatchetLimits.from_bytes(limits_blob),
         )
