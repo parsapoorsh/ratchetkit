@@ -1,5 +1,7 @@
 """Pluggability matrix across CryptoSuite combinations."""
 
+from __future__ import annotations
+
 import pytest
 
 from ratchetkit.keys.identity import IdentityKeyPair
