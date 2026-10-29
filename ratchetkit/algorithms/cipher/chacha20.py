@@ -1,6 +1,6 @@
 """ChaCha20 stream cipher algorithm."""
-
 from __future__ import annotations
+
 
 from cryptography.hazmat.primitives.ciphers import algorithms
 

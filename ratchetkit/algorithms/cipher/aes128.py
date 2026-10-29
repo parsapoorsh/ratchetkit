@@ -1,6 +1,6 @@
 """AES-128 cipher algorithm."""
-
 from __future__ import annotations
+
 
 from cryptography.hazmat.primitives.ciphers import algorithms
 

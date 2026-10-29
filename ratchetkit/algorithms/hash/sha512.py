@@ -1,6 +1,6 @@
 """SHA-512 hash algorithm."""
-
 from __future__ import annotations
+
 
 import hashlib
 

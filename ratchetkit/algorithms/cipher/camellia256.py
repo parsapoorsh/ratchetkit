@@ -1,6 +1,6 @@
 """Camellia-256 cipher algorithm."""
-
 from __future__ import annotations
+
 
 try:
     from cryptography.hazmat.decrepit.ciphers.algorithms import Camellia

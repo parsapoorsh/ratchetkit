@@ -1,6 +1,6 @@
 """BLAKE2b hash algorithm (64-byte digest)."""
-
 from __future__ import annotations
+
 
 import hashlib
 
