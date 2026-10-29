@@ -11,6 +11,7 @@ from ratchetkit.keys.keypair import KeyPair, PublicKey
 from ratchetkit.keys.message import MessageKeys
 from ratchetkit.keys.root import RootKey
 from ratchetkit.packing import (
+    Constructor,
     ConstructorId,
     encode_bytes,
     encode_optional_bytes,
@@ -32,7 +33,7 @@ if TYPE_CHECKING:
     from ratchetkit.suite.double import CryptoSuiteDoubleRatchet as CryptoSuite
 
 
-class DoubleRatchet(Ratchet):
+class DoubleRatchet(Ratchet, Constructor):
     """Stateful Double Ratchet session half.
 
     Decrypt mutates state only after MAC verification succeeds, matching
@@ -297,7 +298,7 @@ class DoubleRatchet(Ratchet):
         if self.their_kem_public is not None:
             their_kem = self.their_kem_public.to_bytes()
         parts = [
-            pack_constructor(self.CONSTRUCTOR_ID),
+            self.constructor_pack(),
             encode_bytes(self.root_key.to_bytes()),
             encode_u32(self.previous_counter),
             encode_bytes(self.limits.to_bytes()),
@@ -314,7 +315,7 @@ class DoubleRatchet(Ratchet):
 
     @classmethod
     def from_bytes(cls, data: bytes, suite: CryptoSuite) -> DoubleRatchet:
-        offset = expect_constructor(data, cls.CONSTRUCTOR_ID)
+        offset = cls.constructor_expect(data)
         root_blob, offset = read_bytes(data, offset)
         previous_counter, offset = read_u32(data, offset)
         limits_blob, offset = read_bytes(data, offset)

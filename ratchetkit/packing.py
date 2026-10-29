@@ -60,6 +60,42 @@ def expect_constructor(
     return next_offset
 
 
+class Constructor:
+    """Base for types that open their wire blob with a fixed constructor id.
+
+    Subclasses set ``CONSTRUCTOR_ID`` and call the class helpers when packing
+    or parsing::
+
+        class CryptoSuiteDoubleRatchet(Constructor):
+            CONSTRUCTOR_ID = ConstructorId.SUITE_DOUBLE
+    """
+
+    CONSTRUCTOR_ID: ConstructorId
+
+    @classmethod
+    def constructor_pack(cls) -> bytes:
+        """Encode this type's constructor id."""
+        return pack_constructor(cls.CONSTRUCTOR_ID)
+
+    @classmethod
+    def constructor_read(
+        cls,
+        data: bytes | memoryview,
+        offset: int = 0,
+    ) -> tuple[ConstructorId, int]:
+        """Read any constructor id at ``offset`` (does not check type)."""
+        return read_constructor(data, offset)
+
+    @classmethod
+    def constructor_expect(
+        cls,
+        data: bytes | memoryview,
+        offset: int = 0,
+    ) -> int:
+        """Read constructor at ``offset``; raise if it is not ``CONSTRUCTOR_ID``."""
+        return expect_constructor(data, cls.CONSTRUCTOR_ID, offset)
+
+
 def encode_bytes(value: bytes) -> bytes:
     """Length-prefixed bytes (u32 big-endian). Used by session-state blobs."""
     if len(value) > 0xFFFFFFFF:

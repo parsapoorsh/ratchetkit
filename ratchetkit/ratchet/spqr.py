@@ -20,6 +20,7 @@ from ratchetkit.kdf import Kdf
 from ratchetkit.keys.chain import ChainKey
 from ratchetkit.keys.message import MessageKeys
 from ratchetkit.packing import (
+    Constructor,
     ConstructorId,
     encode_bool,
     encode_bytes,
@@ -127,7 +128,7 @@ class SpqrHeader:
         return self.to_bytes()
 
 
-class SparsePostQuantumRatchet:
+class SparsePostQuantumRatchet(Constructor):
     """Secure messaging ratchet driven by an SCKA (DR §5)."""
 
     def __init__(
@@ -480,7 +481,7 @@ class SparsePostQuantumRatchet:
 
         return b"".join(
             [
-                pack_constructor(self.CONSTRUCTOR_ID),
+                self.constructor_pack(),
                 encode_bytes(self.root_key),
                 encode_u8(self.direction),
                 encode_u32(self.epoch),
@@ -501,7 +502,7 @@ class SparsePostQuantumRatchet:
         suite: CryptoSuite,
         pq_kem: KemBackend,
     ) -> SparsePostQuantumRatchet:
-        offset = expect_constructor(data, cls.CONSTRUCTOR_ID)
+        offset = cls.constructor_expect(data)
         root_key, offset = read_bytes(data, offset)
         direction, offset = read_u8(data, offset)
         epoch, offset = read_u32(data, offset)

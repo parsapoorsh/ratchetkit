@@ -12,6 +12,7 @@ from ratchetkit.kdf import Kdf
 from ratchetkit.keys.keypair import KeyPair, PublicKey
 from ratchetkit.keys.message import MessageKeys
 from ratchetkit.packing import (
+    Constructor,
     ConstructorId,
     encode_bytes,
     expect_constructor,
@@ -35,7 +36,7 @@ TR_INFO_SPLIT = b"TR v1 SK split"
 TR_INFO_HYBRID = b"TR v1 hybrid mk"
 
 
-class TripleRatchet(Ratchet):
+class TripleRatchet(Ratchet, Constructor):
     """Hybrid secure messaging: EC Double Ratchet ∥ Sparse PQ Ratchet.
 
     Owns composition only: split handshake SK, drive both leaf ratchets via
@@ -230,7 +231,7 @@ class TripleRatchet(Ratchet):
 
     def to_bytes(self) -> bytes:
         return (
-            pack_constructor(self.CONSTRUCTOR_ID)
+            self.constructor_pack()
             + encode_bytes(self.ec.to_bytes())
             + encode_bytes(self.spqr.to_bytes())
         )
@@ -241,7 +242,7 @@ class TripleRatchet(Ratchet):
         data: bytes,
         suite: CryptoSuiteTripleRatchet,
     ) -> TripleRatchet:
-        offset = expect_constructor(data, cls.CONSTRUCTOR_ID)
+        offset = cls.constructor_expect(data)
         ec_blob, offset = read_bytes(data, offset)
         spqr_blob, offset = read_bytes(data, offset)
         if offset != len(data):

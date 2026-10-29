@@ -12,6 +12,7 @@ from ratchetkit.keys.prekey import (
     SignedPreKey,
 )
 from ratchetkit.packing import (
+    Constructor,
     ConstructorId,
     encode_bytes,
     expect_constructor,
@@ -31,7 +32,7 @@ from ratchetkit.suite.triple import CryptoSuiteTripleRatchet
 from ratchetkit.handshake.message import InitialMessageX3DH
 
 
-class Session:
+class Session(Constructor):
     """Conversation session: encrypt / decrypt + binary persistence.
 
     ``CryptoSuiteDoubleRatchet`` uses classical X3DH + Double Ratchet.
@@ -195,7 +196,7 @@ class Session:
         separate suite argument. Treat the result as secret key material.
         """
         return (
-            pack_constructor(self.CONSTRUCTOR_ID)
+            self.constructor_pack()
             + encode_bytes(self.suite.to_bytes())
             + encode_bytes(self.associated_data)
             + encode_bytes(self.ratchet.to_bytes())
@@ -204,7 +205,7 @@ class Session:
     @classmethod
     def from_bytes(cls, data: bytes) -> Session:
         """Restore a session from :meth:`to_bytes` output."""
-        offset = expect_constructor(data, cls.CONSTRUCTOR_ID)
+        offset = cls.constructor_expect(data)
         suite_blob, offset = read_bytes(data, offset)
         associated_data, offset = read_bytes(data, offset)
         ratchet_blob, offset = read_bytes(data, offset)

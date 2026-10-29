@@ -13,6 +13,7 @@ import struct
 
 from ratchetkit.errors import InvalidMessage, SerializationError
 from ratchetkit.packing import (
+    Constructor,
     ConstructorId,
     expect_constructor,
     pack_constructor,
@@ -52,7 +53,7 @@ class ChunkCodec:
         return blob[:payload_len]
 
 
-class ChunkFrame:
+class ChunkFrame(Constructor):
     """Wire format for one SCKA chunk (or ack-only) message body."""
 
     CONSTRUCTOR_ID = ConstructorId.CHUNK_FRAME
@@ -81,7 +82,7 @@ class ChunkFrame:
         if len(self.data) > 0xFFFF:
             raise SerializationError("chunk data too large")
         return (
-            pack_constructor(self.CONSTRUCTOR_ID)
+            self.constructor_pack()
             + bytes([self.flags & 0xFF])
             + struct.pack(
                 ">IHHHH",
@@ -100,7 +101,7 @@ class ChunkFrame:
         # constructor(4) + flags(1) + IHHHH(12) + data_len(2)
         if len(raw) < 4 + 1 + 12 + 2:
             raise SerializationError("truncated SCKA chunk frame")
-        offset = expect_constructor(raw, cls.CONSTRUCTOR_ID)
+        offset = cls.constructor_expect(raw)
         flags = raw[offset]
         offset += 1
         key_epoch, chunk_index, n_chunks, ack_count, payload_len = struct.unpack_from(

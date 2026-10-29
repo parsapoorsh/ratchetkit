@@ -14,6 +14,7 @@ from ratchetkit.keys.keypair import (
     SigningPublicKey,
 )
 from ratchetkit.packing import (
+    Constructor,
     ConstructorId,
     encode_u32,
     expect_constructor,
@@ -120,7 +121,7 @@ class SignedPqPreKey:
 
 
 @dataclass(frozen=True)
-class PreKeyBundle:
+class PreKeyBundle(Constructor):
     """Public material a peer publishes for X3DH / PQXDH initiation."""
 
     identity_signing: SigningPublicKey
@@ -234,7 +235,7 @@ class PreKeyBundle:
 
     def to_bytes(self) -> bytes:
         parts = [
-            pack_constructor(self.CONSTRUCTOR_ID),
+            self.constructor_pack(),
             self.encode_field(self.identity_signing.data),
             encode_u32(int(self.identity_signing.algorithm)),
         ]
@@ -286,7 +287,7 @@ class PreKeyBundle:
         view = memoryview(data)
         if not view:
             raise SerializationError("empty prekey bundle")
-        offset = expect_constructor(view, cls.CONSTRUCTOR_ID)
+        offset = cls.constructor_expect(view)
 
         identity_data, offset = cls.read_field(view, offset)
         identity_alg_id, offset = read_u32(view, offset)

@@ -7,6 +7,7 @@ from dataclasses import dataclass
 
 from ratchetkit.errors import SerializationError
 from ratchetkit.packing import (
+    Constructor,
     ConstructorId,
     expect_constructor,
     pack_constructor,
@@ -15,7 +16,7 @@ from ratchetkit.ratchet.message.base import RatchetMessage
 
 
 @dataclass
-class DoubleRatchetMessage(RatchetMessage):
+class DoubleRatchetMessage(RatchetMessage, Constructor):
     """Double Ratchet ciphertext with header and MAC tag."""
 
     ratchet_public: bytes
@@ -34,7 +35,7 @@ class DoubleRatchetMessage(RatchetMessage):
 
     def to_bytes(self) -> bytes:
         return (
-            pack_constructor(self.CONSTRUCTOR_ID)
+            self.constructor_pack()
             + self.header_bytes()
             + self.encode_field(self.ciphertext)
             + self.encode_field(self.mac)
@@ -45,7 +46,7 @@ class DoubleRatchetMessage(RatchetMessage):
         view = memoryview(data)
         if not view:
             raise SerializationError("empty ratchet message")
-        offset = expect_constructor(view, cls.CONSTRUCTOR_ID)
+        offset = cls.constructor_expect(view)
 
         ratchet_public, offset = cls.read_field(view, offset)
         if offset + 8 > len(view):

@@ -19,6 +19,7 @@ from typing import TYPE_CHECKING
 from ratchetkit.errors import InvalidKey, InvalidMessage, SerializationError
 from ratchetkit.keys.keypair import KeyPair, PublicKey
 from ratchetkit.packing import (
+    Constructor,
     ConstructorId,
     encode_bool,
     encode_bytes,
@@ -59,7 +60,7 @@ class SckaRecvResult:
 
 
 @dataclass
-class ChunkedKemScka:
+class ChunkedKemScka(Constructor):
     """Alternating KEM SCKA with fixed-width chunk amortization.
 
     Epoch 0 is the handshake secret. Epochs 1, 2, ... are produced one at a time
@@ -327,7 +328,7 @@ class ChunkedKemScka:
 
         return b"".join(
             [
-                pack_constructor(self.CONSTRUCTOR_ID),
+                self.constructor_pack(),
                 encode_u32(self.n_chunks),
                 encode_bool(self.is_cka_sender),
                 encode_optional_bytes(our_key),
@@ -347,7 +348,7 @@ class ChunkedKemScka:
 
     @classmethod
     def from_bytes(cls, data: bytes, kem: KemBackend) -> ChunkedKemScka:
-        offset = expect_constructor(data, cls.CONSTRUCTOR_ID)
+        offset = cls.constructor_expect(data)
         n_chunks, offset = read_u32(data, offset)
         is_cka_sender, offset = read_bool(data, offset)
         our_key_blob, offset = read_optional_bytes(data, offset)

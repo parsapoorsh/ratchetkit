@@ -7,6 +7,7 @@ from dataclasses import dataclass
 
 from ratchetkit.errors import SerializationError
 from ratchetkit.packing import (
+    Constructor,
     ConstructorId,
     expect_constructor,
     pack_constructor,
@@ -17,7 +18,7 @@ from ratchetkit.ratchet.spqr import SpqrHeader
 
 
 @dataclass
-class TripleRatchetMessage(RatchetMessage):
+class TripleRatchetMessage(RatchetMessage, Constructor):
     """Composite header (EC Double Ratchet + SPQR) + ciphertext + MAC."""
 
     ec_message: DoubleRatchetMessage
@@ -39,7 +40,7 @@ class TripleRatchetMessage(RatchetMessage):
 
     def to_bytes(self) -> bytes:
         return (
-            pack_constructor(self.CONSTRUCTOR_ID)
+            self.constructor_pack()
             + self.header_bytes()
             + self.encode_field(self.ciphertext)
             + self.encode_field(self.mac)
@@ -50,7 +51,7 @@ class TripleRatchetMessage(RatchetMessage):
         if not data:
             raise SerializationError("empty triple ratchet message")
         view = memoryview(data)
-        offset = expect_constructor(view, cls.CONSTRUCTOR_ID)
+        offset = cls.constructor_expect(view)
         if offset + 2 > len(view):
             raise SerializationError("truncated triple header")
         ec_len = struct.unpack_from(">H", view, offset)[0]

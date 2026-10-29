@@ -9,10 +9,9 @@ from ratchetkit.algorithms.kem.base import KemBackend
 from ratchetkit.algorithms.signing.base import SigningBackend
 from ratchetkit.errors import SerializationError
 from ratchetkit.packing import (
+    Constructor,
     ConstructorId,
     encode_u32,
-    expect_constructor,
-    pack_constructor,
     read_u32,
 )
 from ratchetkit.suite.algs import (
@@ -43,7 +42,7 @@ from ratchetkit.handshake.x3dh import ExtendedTripleDiffieHellman
 
 
 @dataclass(frozen=True, kw_only=True)
-class CryptoSuiteDoubleRatchet:
+class CryptoSuiteDoubleRatchet(Constructor):
     """Primitives for X3DH and classical Double Ratchet sessions.
 
     Agreement and signing are separate: ``key_exchange`` / ``kem`` for
@@ -119,7 +118,7 @@ class CryptoSuiteDoubleRatchet:
 
     def to_bytes(self) -> bytes:
         return (
-            pack_constructor(self.CONSTRUCTOR_ID)
+            self.constructor_pack()
             + encode_u32(int(self.digest))
             + encode_u32(int(self.cipher))
             + encode_u32(int(self.key_exchange))
@@ -129,7 +128,7 @@ class CryptoSuiteDoubleRatchet:
 
     @classmethod
     def from_bytes(cls, data: bytes) -> CryptoSuiteDoubleRatchet:
-        offset = expect_constructor(data, cls.CONSTRUCTOR_ID)
+        offset = cls.constructor_expect(data)
         digest_id, offset = read_u32(data, offset)
         cipher_id, offset = read_u32(data, offset)
         kx_id, offset = read_u32(data, offset)

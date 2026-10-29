@@ -9,6 +9,7 @@ from ratchetkit.errors import SerializationError
 from ratchetkit.suite.algs import KeyExchangeAlg, SigningAlg
 from ratchetkit.keys.keypair import PublicKey, SigningPublicKey
 from ratchetkit.packing import (
+    Constructor,
     encode_u32,
     read_u32,
     ConstructorId,
@@ -18,7 +19,7 @@ from ratchetkit.packing import (
 
 
 @dataclass
-class InitialMessageX3DH:
+class InitialMessageX3DH(Constructor):
     """First message of a classical X3DH handshake (public half only)."""
 
     identity_signing: SigningPublicKey
@@ -72,7 +73,7 @@ class InitialMessageX3DH:
         return b"".join(parts)
 
     def to_bytes(self) -> bytes:
-        return pack_constructor(self.CONSTRUCTOR_ID) + self.encode_body()
+        return self.constructor_pack() + self.encode_body()
 
     @classmethod
     def decode_body(cls, view: memoryview, offset: int) -> tuple[dict, int]:
@@ -134,7 +135,7 @@ class InitialMessageX3DH:
         view = memoryview(data)
         if not view:
             raise SerializationError("empty initial message")
-        offset = expect_constructor(view, cls.CONSTRUCTOR_ID)
+        offset = cls.constructor_expect(view)
         fields, offset = cls.decode_body(view, offset)
         if offset != len(view):
             raise SerializationError("trailing bytes in initial message")
@@ -183,7 +184,7 @@ class InitialMessagePQXDH(InitialMessageX3DH):
         view = memoryview(data)
         if not view:
             raise SerializationError("empty initial message")
-        offset = expect_constructor(view, cls.CONSTRUCTOR_ID)
+        offset = cls.constructor_expect(view)
         fields, offset = cls.decode_body(view, offset)
         if offset + 4 > len(view):
             raise SerializationError("truncated PQ prekey id")
