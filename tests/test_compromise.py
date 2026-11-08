@@ -16,7 +16,7 @@ EC+SPQR keys where message-key theft is under test.
 """
 from __future__ import annotations
 
-from ratchetkit.suite.registry import hash_backend
+from ratchetkit.suite.registry import HASH
 
 import pytest
 
@@ -170,7 +170,7 @@ def hollow_from_root(
             root_key=root,
             our_ratchet_key=our_ratchet_key,
         )
-        size = hash_backend(suite.digest).digest_size
+        size = HASH[suite.digest].digest_size
         spqr = SparsePostQuantumRatchet.initiate(
             suite,
             b"\x02" * size,

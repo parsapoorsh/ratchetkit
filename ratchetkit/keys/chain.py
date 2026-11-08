@@ -1,7 +1,7 @@
 """Chain key: HMAC stepping and message-key seed derivation."""
 from __future__ import annotations
 
-from ratchetkit.suite.registry import hash_backend
+from ratchetkit.suite.registry import HASH
 
 
 from typing import TYPE_CHECKING
@@ -24,7 +24,7 @@ class ChainKey:
     """
 
     def __init__(self, key: bytes, index: int, suite: CryptoSuite):
-        expected = hash_backend(suite.digest).digest_size
+        expected = HASH[suite.digest].digest_size
         if not isinstance(key, (bytes, bytearray)) or len(key) != expected:
             raise InvalidKey(
                 f"chain key must be {expected} bytes, got "

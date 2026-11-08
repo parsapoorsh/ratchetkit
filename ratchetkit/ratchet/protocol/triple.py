@@ -20,7 +20,7 @@ from ratchetkit.ratchet.protocol.base import Ratchet
 from ratchetkit.ratchet.protocol.double import DoubleRatchet
 from ratchetkit.ratchet.spqr import SparsePostQuantumRatchet
 from ratchetkit.suite import KdfLabel
-from ratchetkit.suite.registry import hash_backend
+from ratchetkit.suite.registry import HASH
 
 if TYPE_CHECKING:
     from ratchetkit.suite.double import CryptoSuiteDoubleRatchet as CryptoSuite
@@ -107,7 +107,7 @@ class TripleRatchet(Ratchet[TripleRatchetMessage], Constructor):
     @staticmethod
     def split_sk(suite: CryptoSuite, sk: bytes) -> tuple[bytes, bytes]:
         """Expand handshake SK into SKec and SKscka (spec §7.1)."""
-        size = hash_backend(suite.digest).digest_size
+        size = HASH[suite.digest].digest_size
         kdf = Kdf(suite.digest)
         material = kdf.hkdf(
             sk,
@@ -119,7 +119,7 @@ class TripleRatchet(Ratchet[TripleRatchetMessage], Constructor):
 
     def hybrid_message_key(self, ec_mk: bytes, pq_mk: bytes) -> bytes:
         """KDF_HYBRID(ec_mk, pq_mk) -> seed for MessageKeys.derive."""
-        size = hash_backend(self.suite.digest).digest_size
+        size = HASH[self.suite.digest].digest_size
         return self.kdf.hkdf(
             ec_mk,
             size,

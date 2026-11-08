@@ -36,7 +36,6 @@ from ratchetkit.algorithms.signing.ed25519 import Ed25519
 from ratchetkit.algorithms.signing.ed448 import Ed448
 from ratchetkit.algorithms.signing.mldsa import Mldsa65, Mldsa87
 from ratchetkit.algorithms.signing.rsa_pss import RsaPss2048, RsaPss3072, RsaPss4096
-from ratchetkit.errors import SerializationError
 from ratchetkit.suite.algs import CipherAlg, HashAlg, KeyExchangeAlg, SigningAlg
 
 HASH = {
@@ -80,39 +79,3 @@ SIGNING = {
     SigningAlg.MLDSA65: Mldsa65,
     SigningAlg.MLDSA87: Mldsa87,
 }
-
-
-def hash_backend(alg: HashAlg):
-    """Concrete hash algorithm class for ``alg``."""
-    try:
-        return HASH[alg]
-    except KeyError as exc:
-        raise SerializationError(f"hash backend not registered for {alg!r}") from exc
-
-
-def cipher_backend(alg: CipherAlg):
-    """Concrete cipher algorithm class for ``alg``."""
-    try:
-        return CIPHER[alg]
-    except KeyError as exc:
-        raise SerializationError(f"cipher backend not registered for {alg!r}") from exc
-
-
-def key_exchange_backend(alg: KeyExchangeAlg):
-    """Concrete KEM/DH algorithm class for ``alg``."""
-    try:
-        return KEY_EXCHANGE[alg]
-    except KeyError as exc:
-        raise SerializationError(
-            f"key-exchange backend not registered for {alg!r}"
-        ) from exc
-
-
-def signing_backend(alg: SigningAlg):
-    """Concrete signature algorithm class for ``alg``."""
-    try:
-        return SIGNING[alg]
-    except KeyError as exc:
-        raise SerializationError(
-            f"signing backend not registered for {alg!r}"
-        ) from exc

@@ -31,7 +31,7 @@ from ratchetkit.suite.algs import (
     SigningAlg,
 )
 from ratchetkit.suite.double import CryptoSuiteDoubleRatchet
-from ratchetkit.suite.registry import hash_backend, key_exchange_backend
+from ratchetkit.suite.registry import HASH, KEY_EXCHANGE
 
 if TYPE_CHECKING:
     from ratchetkit.ratchet.message.base import RatchetMessage
@@ -59,7 +59,7 @@ class CryptoSuiteTripleRatchet(CryptoSuiteDoubleRatchet):
         object.__setattr__(
             self,
             "pq_kem",
-            key_exchange_backend(self.pq_key_exchange)(),
+            KEY_EXCHANGE[self.pq_key_exchange](),
         )
 
     def create_bundle(
@@ -134,7 +134,7 @@ class CryptoSuiteTripleRatchet(CryptoSuiteDoubleRatchet):
         signature = self.signer.sign(
             our_identity.signing,
             to_sign,
-            hash_backend(self.digest),
+            HASH[self.digest],
         )
         initial = InitialMessagePQXDH(
             identity_signing=our_identity.signing.public,
@@ -223,7 +223,7 @@ class CryptoSuiteTripleRatchet(CryptoSuiteDoubleRatchet):
             initial.identity_signing,
             to_verify,
             initial.signature,
-            hash_backend(self.digest),
+            HASH[self.digest],
         )
         secrets: list[bytes] = [
             self.kem.dh(

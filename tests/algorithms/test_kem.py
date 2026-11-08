@@ -24,7 +24,7 @@ from ratchetkit.algorithms.signing.ecdsa import (
 from ratchetkit.algorithms.signing.rsa_pss import RsaPss2048, RsaPss3072, RsaPss4096
 from ratchetkit.keys.keypair import KeyPair, PublicKey, SigningKeyPair, SigningPublicKey
 from ratchetkit.suite import KeyExchangeAlg, SigningAlg
-from ratchetkit.suite.registry import key_exchange_backend, signing_backend
+from ratchetkit.suite.registry import KEY_EXCHANGE, SIGNING
 
 
 def test_every_key_exchange_alg_is_covered():
@@ -60,7 +60,7 @@ def test_every_signing_alg_is_covered():
 def test_x25519_dh_golden(goldens):
     g = goldens["kem"]["x25519"]
     kem = X25519()
-    assert key_exchange_backend(KeyExchangeAlg.X25519) is X25519
+    assert KEY_EXCHANGE[KeyExchangeAlg.X25519] is X25519
     alice = KeyPair(
         private=bytes.fromhex(g["alice_private"]),
         public=PublicKey(kem.derive_public(bytes.fromhex(g["alice_private"])), KeyExchangeAlg.X25519),
@@ -223,7 +223,7 @@ def test_mlkem_decap_golden(goldens, name, cls, alg):
 
 def test_signing_backends_roundtrip():
     for alg in SigningAlg:
-        signer = signing_backend(alg)()
+        signer = SIGNING[alg]()
         pair = signer.generate_keypair()
         assert pair.public.algorithm is alg
         sig = signer.sign(pair, b"hello", Sha256)

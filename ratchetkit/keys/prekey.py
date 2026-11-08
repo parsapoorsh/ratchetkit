@@ -23,7 +23,7 @@ from ratchetkit.packing import (
     read_u16,
 )
 from ratchetkit.suite.algs import KeyExchangeAlg, SigningAlg
-from ratchetkit.suite.registry import hash_backend
+from ratchetkit.suite.registry import HASH
 
 if TYPE_CHECKING:
     from ratchetkit.algorithms.kem.base import KemBackend
@@ -57,7 +57,7 @@ class SignedPreKey:
         signature = suite.signer.sign(
             identity.signing,
             cls.signed_material(pair.public),
-            hash_backend(suite.digest),
+            HASH[suite.digest],
         )
         return cls(key_id=key_id, key_pair=pair, signature=signature)
 
@@ -102,7 +102,7 @@ class SignedPqPreKey:
         signature = suite.signer.sign(
             identity.signing,
             cls.signed_material(pair.public),
-            hash_backend(suite.digest),
+            HASH[suite.digest],
         )
         return cls(key_id=key_id, key_pair=pair, signature=signature)
 
@@ -156,7 +156,7 @@ class PreKeyBundle(Constructor):
                 self.identity_signing,
                 SignedPreKey.signed_material(self.signed_prekey),
                 self.signed_prekey_signature,
-                hash_backend(suite.digest),
+                HASH[suite.digest],
             )
         except InvalidSignature:
             raise
@@ -180,7 +180,7 @@ class PreKeyBundle(Constructor):
                     self.identity_signing,
                     SignedPqPreKey.signed_material(self.pq_prekey),
                     self.pq_prekey_signature,
-                    hash_backend(suite.digest),
+                    HASH[suite.digest],
                 )
             except InvalidSignature:
                 raise

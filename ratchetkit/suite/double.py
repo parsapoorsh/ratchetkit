@@ -32,12 +32,7 @@ from ratchetkit.suite.algs import (
     KeyExchangeAlg,
     SigningAlg,
 )
-from ratchetkit.suite.registry import (
-    cipher_backend,
-    hash_backend,
-    key_exchange_backend,
-    signing_backend,
-)
+from ratchetkit.suite.registry import CIPHER, HASH, KEY_EXCHANGE, SIGNING
 
 if TYPE_CHECKING:
     from ratchetkit.session import Session
@@ -52,8 +47,8 @@ class CryptoSuiteDoubleRatchet(Constructor):
 
     Sizes live on the algorithm classes::
 
-        hash_backend(suite.digest).digest_size
-        cipher_backend(suite.cipher).key_size
+        HASH[suite.digest].digest_size
+        CIPHER[suite.cipher].key_size
 
     Suite dumps write each algorithm as its permanent ``IntEnum`` id (u32).
     """
@@ -69,14 +64,14 @@ class CryptoSuiteDoubleRatchet(Constructor):
     CONSTRUCTOR_ID = ConstructorId.SUITE_DOUBLE
 
     def __post_init__(self) -> None:
-        key_size = cipher_backend(self.cipher).key_size
+        key_size = CIPHER[self.cipher].key_size
         if key_size < MIN_CIPHER_KEY_BYTES:
             raise ValueError(
                 f"cipher {self.cipher.name!r} key size {key_size} "
                 f"is below the {MIN_CIPHER_KEY_BYTES}-byte minimum "
                 "(use AES-256, Camellia-256, or ChaCha20)"
             )
-        digest_size = hash_backend(self.digest).digest_size
+        digest_size = HASH[self.digest].digest_size
         if self.tag_size < MIN_TAG_SIZE or self.tag_size > digest_size:
             raise ValueError(
                 f"tag_size {self.tag_size} out of range "
@@ -86,12 +81,12 @@ class CryptoSuiteDoubleRatchet(Constructor):
         object.__setattr__(
             self,
             "kem",
-            key_exchange_backend(self.key_exchange)(),
+            KEY_EXCHANGE[self.key_exchange](),
         )
         object.__setattr__(
             self,
             "signer",
-            signing_backend(self.signing)(),
+            SIGNING[self.signing](),
         )
 
     def create_bundle(
@@ -169,7 +164,7 @@ class CryptoSuiteDoubleRatchet(Constructor):
         signature = self.signer.sign(
             our_identity.signing,
             to_sign,
-            hash_backend(self.digest),
+            HASH[self.digest],
         )
         initial = InitialMessageX3DH(
             identity_signing=our_identity.signing.public,
@@ -239,7 +234,7 @@ class CryptoSuiteDoubleRatchet(Constructor):
             initial.identity_signing,
             to_verify,
             initial.signature,
-            hash_backend(self.digest),
+            HASH[self.digest],
         )
 
         secrets: list[bytes] = []
@@ -341,7 +336,7 @@ class CryptoSuiteDoubleRatchet(Constructor):
                 raise InvalidKey(f"handshake secret {index} is empty")
             if not any(secret):
                 raise InvalidKey(f"handshake secret {index} is all zeros")
-        size = hash_backend(self.digest).digest_size
+        size = HASH[self.digest].digest_size
         prefix = b"\xff" * size
         ikm = prefix + b"".join(bytes(s) for s in secrets)
         return Kdf(self.digest).hkdf(ikm, size, salt=None, info=info)

@@ -9,7 +9,7 @@ from ratchetkit.kdf import Kdf
 from ratchetkit.keys.chain import ChainKey
 from ratchetkit.packing import encode_bytes, read_bytes
 from ratchetkit.suite import KdfLabel
-from ratchetkit.suite.registry import hash_backend
+from ratchetkit.suite.registry import HASH
 
 if TYPE_CHECKING:
     from ratchetkit.suite.double import CryptoSuiteDoubleRatchet as CryptoSuite
@@ -19,7 +19,7 @@ class RootKey:
     """Root key advanced on each DH/KEM ratchet step."""
 
     def __init__(self, key: bytes, suite: CryptoSuite):
-        expected = hash_backend(suite.digest).digest_size
+        expected = HASH[suite.digest].digest_size
         if not isinstance(key, (bytes, bytearray)) or len(key) != expected:
             raise InvalidKey(
                 f"root key must be {expected} bytes, got "
@@ -41,7 +41,7 @@ class RootKey:
             raise InvalidKey("DH/KEM shared secret is missing or empty")
         if not any(shared):
             raise InvalidKey("DH/KEM shared secret is all zeros")
-        size = hash_backend(self.suite.digest).digest_size
+        size = HASH[self.suite.digest].digest_size
         material = self.kdf.hkdf(
             bytes(shared),
             size + size,

@@ -1,7 +1,7 @@
 """Sparse Post-Quantum Ratchet (Signal Double Ratchet specification §5)."""
 from __future__ import annotations
 
-from ratchetkit.suite.registry import hash_backend
+from ratchetkit.suite.registry import HASH
 
 
 from dataclasses import dataclass
@@ -261,7 +261,7 @@ class SparsePostQuantumRatchet(Constructor):
 
     @staticmethod
     def kdf_init(suite: CryptoSuite, sk: bytes) -> tuple[bytes, bytes, bytes]:
-        size = hash_backend(suite.digest).digest_size
+        size = HASH[suite.digest].digest_size
         kdf = Kdf(suite.digest)
         material = kdf.hkdf(
             sk,
@@ -272,7 +272,7 @@ class SparsePostQuantumRatchet(Constructor):
         return material[:size], material[size:size * 2], material[size * 2:]
 
     def kdf_rk(self, scka_out: bytes) -> tuple[bytes, bytes, bytes]:
-        size = hash_backend(self.suite.digest).digest_size
+        size = HASH[self.suite.digest].digest_size
         material = self.kdf.hkdf(
             scka_out,
             size * 3,

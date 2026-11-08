@@ -5,14 +5,14 @@ from __future__ import annotations
 import hmac
 
 from ratchetkit.suite import HashAlg
-from ratchetkit.suite.registry import hash_backend
+from ratchetkit.suite.registry import HASH
 
 
 class Kdf:
     """Domain-separated HKDF / HMAC using a suite hash class."""
 
     def __init__(self, digest: HashAlg):
-        self.hash_cls = hash_backend(digest)
+        self.hash_cls = HASH[digest]
 
     def hmac_digest(self, key: bytes, data: bytes) -> bytes:
         """HMAC over ``data`` using the suite digest."""

@@ -14,7 +14,7 @@ from ratchetkit.packing import (
     read_u32,
 )
 from ratchetkit.suite import KdfLabel
-from ratchetkit.suite.registry import cipher_backend, hash_backend
+from ratchetkit.suite.registry import CIPHER, HASH
 
 if TYPE_CHECKING:
     from ratchetkit.suite.double import CryptoSuiteDoubleRatchet as CryptoSuite
@@ -34,8 +34,8 @@ class MessageKeys:
 
     @classmethod
     def derive(cls, seed: bytes, counter: int, suite: CryptoSuite) -> MessageKeys:
-        cipher = cipher_backend(suite.cipher)
-        digest = hash_backend(suite.digest)
+        cipher = CIPHER[suite.cipher]
+        digest = HASH[suite.digest]
         key_size = cipher.key_size
         mac_size = digest.digest_size
         kdf = Kdf(suite.digest)
@@ -52,20 +52,20 @@ class MessageKeys:
         )
 
     def nonce(self, tag: bytes, suite: CryptoSuite) -> bytes:
-        size = cipher_backend(suite.cipher).iv_size()
+        size = CIPHER[suite.cipher].iv_size()
         if len(tag) >= size:
             return tag[:size]
         return tag + bytes(size - len(tag))
 
     def encrypt(self, plaintext: bytes, suite: CryptoSuite, tag: bytes) -> bytes:
-        return cipher_backend(suite.cipher).encrypt(
+        return CIPHER[suite.cipher].encrypt(
             self.cipher_key,
             self.nonce(tag, suite),
             plaintext,
         )
 
     def decrypt(self, ciphertext: bytes, suite: CryptoSuite, tag: bytes) -> bytes:
-        return cipher_backend(suite.cipher).decrypt(
+        return CIPHER[suite.cipher].decrypt(
             self.cipher_key,
             self.nonce(tag, suite),
             ciphertext,

@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from ratchetkit.suite.registry import cipher_backend
 """Symmetric cipher goldens (OpenSSL enc -* -ctr / chacha20) for every CipherAlg."""
 
 
@@ -13,6 +12,7 @@ from ratchetkit.algorithms.cipher.camellia128 import Camellia128
 from ratchetkit.algorithms.cipher.camellia256 import Camellia256
 from ratchetkit.algorithms.cipher.chacha20 import ChaCha20
 from ratchetkit.suite import CipherAlg
+from ratchetkit.suite.registry import CIPHER
 
 # OpenSSL enc name -> (CipherAlg, class, key field)
 CIPHERS = {
@@ -41,7 +41,7 @@ def test_cipher_matches_openssl(goldens, openssl_name):
     iv = bytes.fromhex(c["iv_hex"])
     plaintext = c["plaintext"].encode("ascii")
     expected = bytes.fromhex(c["ciphertext"][openssl_name])
-    assert cipher_backend(alg) is cls
+    assert CIPHER[alg] is cls
     assert cls.key_size == len(key)
     assert cls.iv_size() == len(iv)
     _run_or_skip(cls, key, iv, plaintext, expected)
