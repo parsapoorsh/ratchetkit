@@ -21,7 +21,7 @@ from ratchetkit.keys.identity import IdentityKeyPair
 from ratchetkit.keys.prekey import OneTimePreKey, PreKeyBundle, SignedPreKey
 from ratchetkit.ratchet.limits import RatchetLimits
 
-from ratchetkit.handshake import ExtendedTripleDiffieHellman
+
 from ratchetkit.handshake.message import InitialMessagePQXDH, InitialMessageX3DH
 from tests.helpers import (
     apply_limits,
@@ -150,8 +150,7 @@ def test_bad_signed_prekey_signature():
     bob = IdentityKeyPair.generate(suite)
     spk = SignedPreKey.generate(1, bob, suite)
     opk = OneTimePreKey.generate(1, suite)
-    x3dh = ExtendedTripleDiffieHellman(suite)
-    bundle = x3dh.create_bundle(bob, spk, opk)
+    bundle = suite.create_bundle(bob, spk, opk)
     bad = PreKeyBundle(
         identity_signing=bundle.identity_signing,
         identity_agreement=bundle.identity_agreement,
@@ -164,7 +163,7 @@ def test_bad_signed_prekey_signature():
         one_time_prekey=bundle.one_time_prekey,
     )
     with pytest.raises(InvalidSignature):
-        x3dh.initiate(alice, bad)
+        suite.initiate(alice, bad)
 
 
 def test_corrupted_first_message_accept_then_honest_retry(pair):
@@ -177,7 +176,7 @@ def test_corrupted_first_message_accept_then_honest_retry(pair):
     opk = OneTimePreKey.generate(1, suite)
     if kind == "triple":
         pq = suite.generate_pq_prekey(1, bob_id)
-        bundle = suite.handshake().create_bundle(bob_id, spk, pq, opk)
+        bundle = suite.create_bundle(bob_id, spk, pq, opk)
         alice, initial = suite.initiate(alice_id, bundle)
         first = alice.encrypt(b"first-ok")
         corrupted = forge_tampered(
@@ -203,7 +202,7 @@ def test_corrupted_first_message_accept_then_honest_retry(pair):
             our_pq_prekey=pq,
         )
     else:
-        bundle = suite.handshake().create_bundle(bob_id, spk, opk)
+        bundle = suite.create_bundle(bob_id, spk, opk)
         alice, initial = suite.initiate(alice_id, bundle)
         first = alice.encrypt(b"first-ok")
         corrupted = forge_tampered(
@@ -249,7 +248,7 @@ def test_corrupted_initial_message_rejected(pair):
     opk = OneTimePreKey.generate(1, suite)
     if kind == "triple":
         pq = suite.generate_pq_prekey(1, bob_id)
-        bundle = suite.handshake().create_bundle(bob_id, spk, pq, opk)
+        bundle = suite.create_bundle(bob_id, spk, pq, opk)
         alice, initial = suite.initiate(alice_id, bundle)
         first = alice.encrypt(b"x")
         bad_initial = _copy_initial(
@@ -266,7 +265,7 @@ def test_corrupted_initial_message_rejected(pair):
                 our_pq_prekey=pq,
             )
     else:
-        bundle = suite.handshake().create_bundle(bob_id, spk, opk)
+        bundle = suite.create_bundle(bob_id, spk, opk)
         alice, initial = suite.initiate(alice_id, bundle)
         first = alice.encrypt(b"x")
         bad_initial = _copy_initial(
@@ -287,7 +286,7 @@ def test_initial_ratchet_public_swap_rejected(pair):
     opk = OneTimePreKey.generate(1, suite)
     if kind == "triple":
         pq = suite.generate_pq_prekey(1, bob_id)
-        bundle = suite.handshake().create_bundle(bob_id, spk, pq, opk)
+        bundle = suite.create_bundle(bob_id, spk, pq, opk)
         alice, initial = suite.initiate(alice_id, bundle)
         first = alice.encrypt(b"x")
         fake = suite.kem.generate_keypair()
@@ -302,7 +301,7 @@ def test_initial_ratchet_public_swap_rejected(pair):
                 our_pq_prekey=pq,
             )
     else:
-        bundle = suite.handshake().create_bundle(bob_id, spk, opk)
+        bundle = suite.create_bundle(bob_id, spk, opk)
         alice, initial = suite.initiate(alice_id, bundle)
         first = alice.encrypt(b"x")
         fake = suite.kem.generate_keypair()
@@ -318,7 +317,7 @@ def test_optional_one_time_prekey_dh():
     alice_id = IdentityKeyPair.generate(suite)
     bob_id = IdentityKeyPair.generate(suite)
     spk = SignedPreKey.generate(1, bob_id, suite)
-    bundle = suite.handshake().create_bundle(bob_id, spk)
+    bundle = suite.create_bundle(bob_id, spk)
     alice, initial = suite.initiate(alice_id, bundle)
     first = alice.encrypt(b"no-opk")
     bob, plain = suite.accept(bob_id, spk, initial, first, None)
@@ -368,7 +367,7 @@ def test_associated_data_mismatch_on_accept(pair):
     extra = b"channel-7"
     if kind == "triple":
         pq = suite.generate_pq_prekey(1, bob_id)
-        bundle = suite.handshake().create_bundle(bob_id, spk, pq, opk)
+        bundle = suite.create_bundle(bob_id, spk, pq, opk)
         alice, initial = suite.initiate(alice_id, bundle)
         first = alice.encrypt(b"ad-first", associated_data=extra)
         with pytest.raises(InvalidMessage):
@@ -400,7 +399,7 @@ def test_associated_data_mismatch_on_accept(pair):
             our_pq_prekey=pq,
         )
     else:
-        bundle = suite.handshake().create_bundle(bob_id, spk, opk)
+        bundle = suite.create_bundle(bob_id, spk, opk)
         alice, initial = suite.initiate(alice_id, bundle)
         first = alice.encrypt(b"ad-first", associated_data=extra)
         with pytest.raises(InvalidMessage):
@@ -434,7 +433,7 @@ def test_spk_and_opk_id_mismatch_on_respond(pair):
     opk = OneTimePreKey.generate(1, suite)
     if kind == "triple":
         pq = suite.generate_pq_prekey(1, bob_id)
-        bundle = suite.handshake().create_bundle(bob_id, spk, pq, opk)
+        bundle = suite.create_bundle(bob_id, spk, pq, opk)
         alice, initial = suite.initiate(alice_id, bundle)
         first = alice.encrypt(b"x")
         wrong_spk = SignedPreKey.generate(99, bob_id, suite)
@@ -458,7 +457,7 @@ def test_spk_and_opk_id_mismatch_on_respond(pair):
                 our_pq_prekey=pq,
             )
     else:
-        bundle = suite.handshake().create_bundle(bob_id, spk, opk)
+        bundle = suite.create_bundle(bob_id, spk, opk)
         alice, initial = suite.initiate(alice_id, bundle)
         first = alice.encrypt(b"x")
         wrong_spk = SignedPreKey.generate(99, bob_id, suite)

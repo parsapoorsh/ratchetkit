@@ -53,5 +53,5 @@ them with the suite:
 
 ```python
 link.send(message.to_bytes())
-reply = suite.Message.from_bytes(link.recv(), suite)
+reply = DoubleRatchetMessage.from_bytes(link.recv(), suite)
 ```

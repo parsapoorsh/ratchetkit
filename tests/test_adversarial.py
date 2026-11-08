@@ -22,7 +22,7 @@ from ratchetkit.keys.identity import IdentityKeyPair
 from ratchetkit.keys.keypair import PublicKey, SigningPublicKey
 from ratchetkit.keys.prekey import OneTimePreKey, PreKeyBundle, SignedPreKey
 from ratchetkit.ratchet.limits import RatchetLimits
-from ratchetkit.handshake import ExtendedTripleDiffieHellman
+
 from ratchetkit.handshake.message import InitialMessageX3DH
 from tests.helpers import (
     apply_limits,
@@ -177,10 +177,9 @@ def test_identity_agreement_swap_on_initial():
     bob = IdentityKeyPair.generate(suite)
     spk = SignedPreKey.generate(1, bob, suite)
     opk = OneTimePreKey.generate(1, suite)
-    x3dh = ExtendedTripleDiffieHellman(suite)
-    bundle = x3dh.create_bundle(bob, spk, opk)
-    result = x3dh.initiate(alice, bundle)
-    initial = result.initial_message
+    bundle = suite.create_bundle(bob, spk, opk)
+    alice_sess, initial = suite.initiate(alice, bundle)
+    first = alice_sess.encrypt(b"x")
     eve = IdentityKeyPair.generate(suite)
     tampered = InitialMessageX3DH(
         identity_signing=initial.identity_signing,
@@ -193,7 +192,7 @@ def test_identity_agreement_swap_on_initial():
         ratchet_public=initial.ratchet_public,
     )
     with pytest.raises(InvalidSignature):
-        x3dh.respond(bob, spk, tampered, opk)
+        suite.accept(bob, spk, tampered, first, opk)
 
 
 def test_identity_signing_algorithm_relabel():
@@ -202,10 +201,9 @@ def test_identity_signing_algorithm_relabel():
     bob = IdentityKeyPair.generate(suite)
     spk = SignedPreKey.generate(1, bob, suite)
     opk = OneTimePreKey.generate(1, suite)
-    x3dh = ExtendedTripleDiffieHellman(suite)
-    bundle = x3dh.create_bundle(bob, spk, opk)
-    result = x3dh.initiate(alice, bundle)
-    initial = result.initial_message
+    bundle = suite.create_bundle(bob, spk, opk)
+    alice_sess, initial = suite.initiate(alice, bundle)
+    first = alice_sess.encrypt(b"x")
     tampered = InitialMessageX3DH(
         identity_signing=SigningPublicKey(
             initial.identity_signing.data,
@@ -220,7 +218,7 @@ def test_identity_signing_algorithm_relabel():
         ratchet_public=initial.ratchet_public,
     )
     with pytest.raises(InvalidKey, match="identity signing"):
-        x3dh.respond(bob, spk, tampered, opk)
+        suite.accept(bob, spk, tampered, first, opk)
 
 
 def test_spk_algorithm_relabel_on_bundle():
@@ -228,7 +226,7 @@ def test_spk_algorithm_relabel_on_bundle():
     bob = IdentityKeyPair.generate(suite)
     spk = SignedPreKey.generate(1, bob, suite)
     opk = OneTimePreKey.generate(1, suite)
-    bundle = suite.handshake().create_bundle(bob, spk, opk)
+    bundle = suite.create_bundle(bob, spk, opk)
     relabeled = PreKeyBundle(
         identity_signing=bundle.identity_signing,
         identity_agreement=bundle.identity_agreement,

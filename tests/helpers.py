@@ -96,7 +96,7 @@ def open_pair(
     if kind == "triple":
         assert isinstance(suite, CryptoSuiteTripleRatchet)
         pq = suite.generate_pq_prekey(1, bob_id)
-        bundle = suite.handshake().create_bundle(bob_id, spk, pq, opk)
+        bundle = suite.create_bundle(bob_id, spk, pq, opk)
         alice, initial = suite.initiate(alice_id, bundle)
         first = alice.encrypt(first_plain)
         bob, plain = suite.accept(
@@ -108,7 +108,7 @@ def open_pair(
             our_pq_prekey=pq,
         )
     else:
-        bundle = suite.handshake().create_bundle(bob_id, spk, opk)
+        bundle = suite.create_bundle(bob_id, spk, opk)
         alice, initial = suite.initiate(alice_id, bundle)
         first = alice.encrypt(first_plain)
         bob, plain = suite.accept(bob_id, spk, initial, first, opk)

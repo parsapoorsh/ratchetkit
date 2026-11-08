@@ -11,24 +11,34 @@ from example.common import (
     fingerprint,
 )
 from example.suite_config import ACTIVE_SUITE
+from ratchetkit.handshake.message import (
+    InitialMessagePQXDH,
+    InitialMessageX3DH,
+)
 from ratchetkit.keys.identity import IdentityKeyPair
 from ratchetkit.keys.prekey import OneTimePreKey, SignedPreKey
+from ratchetkit.ratchet.message import (
+    DoubleRatchetMessage,
+    TripleRatchetMessage,
+)
 from ratchetkit.suite.triple import CryptoSuiteTripleRatchet
 
 
 def main() -> None:
     suite = ACTIVE_SUITE()
-    Message = suite.Message
-    InitialMessage = suite.InitialMessage
     bob = IdentityKeyPair.generate(suite)
     spk = SignedPreKey.generate(1, bob, suite)
     opk = OneTimePreKey.generate(42, suite)
-    pq = (
-        suite.generate_pq_prekey(1, bob)
-        if isinstance(suite, CryptoSuiteTripleRatchet)
-        else None
-    )
-    bundle = suite.handshake().create_bundle(bob, spk, pq, opk)
+    if isinstance(suite, CryptoSuiteTripleRatchet):
+        Message = TripleRatchetMessage
+        InitialMessage = InitialMessagePQXDH
+        pq = suite.generate_pq_prekey(1, bob)
+        bundle = suite.create_bundle(bob, spk, pq, opk)
+    else:
+        Message = DoubleRatchetMessage
+        InitialMessage = InitialMessageX3DH
+        pq = None
+        bundle = suite.create_bundle(bob, spk, opk)
     print(
         f"[bob]   identity {fingerprint(bob.signing.public.data)}  "
         f"spk_id={spk.key_id}  opk_id={opk.key_id}  "

@@ -17,7 +17,7 @@ from ratchetkit.keys.identity import IdentityKeyPair
 from ratchetkit.keys.prekey import OneTimePreKey, SignedPreKey
 from ratchetkit.suite import SigningAlg, CipherAlg, HashAlg, KeyExchangeAlg
 from ratchetkit.suite.double import CryptoSuiteDoubleRatchet
-from ratchetkit.handshake import ExtendedTripleDiffieHellman
+
 from ratchetkit.keys.keypair import PublicKey
 from ratchetkit.keys.prekey import PreKeyBundle
 from ratchetkit.ratchet.limits import RatchetLimits
@@ -185,10 +185,9 @@ def test_kem_requires_one_time_prekey():
     alice = IdentityKeyPair.generate(suite)
     bob = IdentityKeyPair.generate(suite)
     spk = SignedPreKey.generate(1, bob, suite)
-    x3dh = ExtendedTripleDiffieHellman(suite)
-    bundle = x3dh.create_bundle(bob, spk, None)
+    bundle = suite.create_bundle(bob, spk, None)
     with pytest.raises(InvalidKey, match="one-time prekey"):
-        x3dh.initiate(alice, bundle)
+        suite.initiate(alice, bundle)
 
 
 def test_identity_agreement_bound_in_initial_signature():
@@ -202,10 +201,9 @@ def test_identity_agreement_bound_in_initial_signature():
     bob = IdentityKeyPair.generate(suite)
     spk = SignedPreKey.generate(1, bob, suite)
     opk = OneTimePreKey.generate(1, suite)
-    x3dh = ExtendedTripleDiffieHellman(suite)
-    bundle = x3dh.create_bundle(bob, spk, opk)
-    result = x3dh.initiate(alice, bundle)
-    initial = result.initial_message
+    bundle = suite.create_bundle(bob, spk, opk)
+    alice_sess, initial = suite.initiate(alice, bundle)
+    first = alice_sess.encrypt(b"x")
 
     eve = IdentityKeyPair.generate(suite)
     tampered = InitialMessageX3DH(
@@ -219,7 +217,7 @@ def test_identity_agreement_bound_in_initial_signature():
         ratchet_public=initial.ratchet_public,
     )
     with pytest.raises(InvalidSignature):
-        x3dh.respond(bob, spk, tampered, opk)
+        suite.accept(bob, spk, tampered, first, opk)
 
 
 def test_initial_identity_algorithm_relabel_rejected():
@@ -235,10 +233,9 @@ def test_initial_identity_algorithm_relabel_rejected():
     bob = IdentityKeyPair.generate(suite)
     spk = SignedPreKey.generate(1, bob, suite)
     opk = OneTimePreKey.generate(1, suite)
-    x3dh = ExtendedTripleDiffieHellman(suite)
-    bundle = x3dh.create_bundle(bob, spk, opk)
-    result = x3dh.initiate(alice, bundle)
-    initial = result.initial_message
+    bundle = suite.create_bundle(bob, spk, opk)
+    alice_sess, initial = suite.initiate(alice, bundle)
+    first = alice_sess.encrypt(b"x")
     tampered = InitialMessageX3DH(
         identity_signing=SigningPublicKey(
             initial.identity_signing.data,
@@ -253,7 +250,7 @@ def test_initial_identity_algorithm_relabel_rejected():
         ratchet_public=initial.ratchet_public,
     )
     with pytest.raises(InvalidKey, match="identity signing"):
-        x3dh.respond(bob, spk, tampered, opk)
+        suite.accept(bob, spk, tampered, first, opk)
 
 
 def test_ratchet_message_rejects_trailing_bytes(pair):
@@ -283,7 +280,7 @@ def test_spk_signature_binds_algorithm_label():
     bob = IdentityKeyPair.generate(suite)
     spk = SignedPreKey.generate(1, bob, suite)
     opk = OneTimePreKey.generate(1, suite)
-    bundle = suite.handshake().create_bundle(bob, spk, opk)
+    bundle = suite.create_bundle(bob, spk, opk)
 
     relabeled = PreKeyBundle(
         identity_signing=bundle.identity_signing,

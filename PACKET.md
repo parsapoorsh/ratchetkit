@@ -112,7 +112,8 @@ Persistence blobs live in `0x524B002x`.
 
 Parse constructed objects by reading the leading `u32` and dispatching.
 An unknown id is a serialization error. Ratchet messages are parsed with
-`suite.Message.from_bytes(blob, suite)`.
+`DoubleRatchetMessage.from_bytes(blob, suite)` or
+`TripleRatchetMessage.from_bytes(blob, suite)`.
 
 ---
 
@@ -120,12 +121,13 @@ An unknown id is a serialization error. Ratchet messages are parsed with
 
 These are the blobs a peer actually sends. Handshake and bundle types
 use `to_bytes()` / `from_bytes()`. Ratchet messages use
-`suite.Message.from_bytes(blob, suite)`.
+`DoubleRatchetMessage.from_bytes(blob, suite)` or
+`TripleRatchetMessage.from_bytes(blob, suite)`.
 
 ### PreKeyBundle (`0x524B0010`)
 
 Published identity material for X3DH or PQXDH initiation.
-`suite.handshake().create_bundle(...)` builds it; the initiator verifies signatures
+`suite.create_bundle(...)` builds it; the initiator verifies signatures
 before `suite.initiate`.
 
 ```
@@ -228,7 +230,7 @@ immediately after those 4 bytes (no nested X3DH constructor).
 
 Application ciphertext for a classical Double Ratchet session.
 No constructor id; the session suite selects the parser
-(`suite.Message.from_bytes(blob, suite)`).
+(`DoubleRatchetMessage.from_bytes` / `TripleRatchetMessage.from_bytes`).
 
 ```
 ratchet_public              bytes   DH: kem.public_size; KEM: RatchetHeader

@@ -1,4 +1,4 @@
-"""ExtendedTripleDiffieHellman handshake tests."""
+"""X3DH handshake tests via the suite public API."""
 
 import pytest
 
@@ -12,8 +12,6 @@ from ratchetkit.suite import (
     SigningAlg,
 )
 from ratchetkit.suite.double import CryptoSuiteDoubleRatchet
-from ratchetkit.suite.registry import hash_backend
-from ratchetkit.handshake import ExtendedTripleDiffieHellman
 
 
 def test_x3dh_both_sides_same_secret():
@@ -27,12 +25,12 @@ def test_x3dh_both_sides_same_secret():
     bob = IdentityKeyPair.generate(suite)
     spk = SignedPreKey.generate(1, bob, suite)
     opk = OneTimePreKey.generate(7, suite)
-    x3dh = ExtendedTripleDiffieHellman(suite)
-    bundle = x3dh.create_bundle(bob, spk, opk)
-    result = x3dh.initiate(alice, bundle)
-    bob_secret = x3dh.respond(bob, spk, result.initial_message, opk)
-    assert result.shared_secret == bob_secret
-    assert len(result.shared_secret) == hash_backend(suite.digest).digest_size
+    bundle = suite.create_bundle(bob, spk, opk)
+    alice_sess, initial = suite.initiate(alice, bundle)
+    first = alice_sess.encrypt(b"hello")
+    bob_sess, plain = suite.accept(bob, spk, initial, first, opk)
+    assert plain == b"hello"
+    assert alice_sess.decrypt(bob_sess.encrypt(b"ack")) == b"ack"
 
 
 def test_x3dh_without_one_time_prekey():
@@ -45,11 +43,11 @@ def test_x3dh_without_one_time_prekey():
     alice = IdentityKeyPair.generate(suite)
     bob = IdentityKeyPair.generate(suite)
     spk = SignedPreKey.generate(1, bob, suite)
-    x3dh = ExtendedTripleDiffieHellman(suite)
-    bundle = x3dh.create_bundle(bob, spk, None)
-    result = x3dh.initiate(alice, bundle)
-    bob_secret = x3dh.respond(bob, spk, result.initial_message, None)
-    assert result.shared_secret == bob_secret
+    bundle = suite.create_bundle(bob, spk, None)
+    alice_sess, initial = suite.initiate(alice, bundle)
+    first = alice_sess.encrypt(b"hello")
+    bob_sess, plain = suite.accept(bob, spk, initial, first, None)
+    assert plain == b"hello"
 
 
 def test_x3dh_rejects_tampered_spk_signature():
@@ -62,8 +60,7 @@ def test_x3dh_rejects_tampered_spk_signature():
     alice = IdentityKeyPair.generate(suite)
     bob = IdentityKeyPair.generate(suite)
     spk = SignedPreKey.generate(1, bob, suite)
-    x3dh = ExtendedTripleDiffieHellman(suite)
-    bundle = x3dh.create_bundle(bob, spk, None)
+    bundle = suite.create_bundle(bob, spk, None)
     bad = type(bundle)(
         identity_signing=bundle.identity_signing,
         identity_agreement=bundle.identity_agreement,
@@ -76,4 +73,4 @@ def test_x3dh_rejects_tampered_spk_signature():
         one_time_prekey=bundle.one_time_prekey,
     )
     with pytest.raises(InvalidSignature):
-        x3dh.initiate(alice, bad)
+        suite.initiate(alice, bad)

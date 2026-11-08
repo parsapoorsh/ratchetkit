@@ -11,6 +11,8 @@ from ratchetkit.packing import (
 )
 from ratchetkit.ratchet.message import RatchetMessage
 from ratchetkit.ratchet.protocol import Ratchet
+from ratchetkit.ratchet.protocol.double import DoubleRatchet
+from ratchetkit.ratchet.protocol.triple import TripleRatchet
 from ratchetkit.suite.double import CryptoSuiteDoubleRatchet
 from ratchetkit.suite.double import CryptoSuiteDoubleRatchet as CryptoSuite
 from ratchetkit.suite.triple import CryptoSuiteTripleRatchet
@@ -59,10 +61,6 @@ class Session(Constructor):
 
         ``associated_data`` must match the extra AD used at encrypt time.
         """
-        if not isinstance(message, self.suite.Message):
-            raise TypeError(
-                f"{type(self.suite).__name__} requires {self.suite.Message.__name__}"
-            )
         return self.ratchet.decrypt(
             message,
             self.associated_data + associated_data,
@@ -94,14 +92,16 @@ class Session(Constructor):
         suite_id, _ = Constructor.constructor_read(suite_blob, 0)
         if suite_id is ConstructorId.SUITE_TRIPLE:
             suite: CryptoSuite = CryptoSuiteTripleRatchet.from_bytes(suite_blob)
+            ratchet: Ratchet = TripleRatchet.from_bytes(ratchet_blob, suite)
         elif suite_id is ConstructorId.SUITE_DOUBLE:
             suite = CryptoSuiteDoubleRatchet.from_bytes(suite_blob)
+            ratchet = DoubleRatchet.from_bytes(ratchet_blob, suite)
         else:
             raise SerializationError(
                 f"session suite constructor 0x{int(suite_id):08X} not supported"
             )
         return cls(
             suite=suite,
-            ratchet=suite.Ratchet.from_bytes(ratchet_blob, suite),
+            ratchet=ratchet,
             associated_data=associated_data,
         )

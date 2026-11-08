@@ -33,7 +33,7 @@ def test_ratchet_message_bytes_roundtrip(pair):
     opk = OneTimePreKey.generate(1, suite)
     if kind == "triple":
         pq = suite.generate_pq_prekey(1, bob_id)
-        bundle = suite.handshake().create_bundle(bob_id, spk, pq, opk)
+        bundle = suite.create_bundle(bob_id, spk, pq, opk)
         alice, initial = suite.initiate(alice_id, bundle)
         first = alice.encrypt(b"wire")
         restored = type(first).from_bytes(first.to_bytes(), suite)
@@ -46,7 +46,7 @@ def test_ratchet_message_bytes_roundtrip(pair):
             our_pq_prekey=pq,
         )
     else:
-        bundle = suite.handshake().create_bundle(bob_id, spk, opk)
+        bundle = suite.create_bundle(bob_id, spk, opk)
         alice, initial = suite.initiate(alice_id, bundle)
         first = alice.encrypt(b"wire")
         restored = type(first).from_bytes(first.to_bytes(), suite)
@@ -96,7 +96,7 @@ def test_session_accept_extra_associated_data(pair):
     extra = b"first-extra"
     if kind == "triple":
         pq = suite.generate_pq_prekey(1, bob_id)
-        bundle = suite.handshake().create_bundle(bob_id, spk, pq, opk)
+        bundle = suite.create_bundle(bob_id, spk, pq, opk)
         alice, initial = suite.initiate(alice_id, bundle)
         first = alice.encrypt(b"hello-ad", associated_data=extra)
         bob, plain = suite.accept(
@@ -109,7 +109,7 @@ def test_session_accept_extra_associated_data(pair):
             our_pq_prekey=pq,
         )
     else:
-        bundle = suite.handshake().create_bundle(bob_id, spk, opk)
+        bundle = suite.create_bundle(bob_id, spk, opk)
         alice, initial = suite.initiate(alice_id, bundle)
         first = alice.encrypt(b"hello-ad", associated_data=extra)
         bob, plain = suite.accept(
