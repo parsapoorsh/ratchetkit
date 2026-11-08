@@ -16,7 +16,9 @@ from ratchetkit.keys.keypair import (
 from ratchetkit.packing import (
     Constructor,
     ConstructorId,
+    encode_bytes16,
     encode_u32,
+    read_bytes16,
     read_u32,
 )
 from ratchetkit.suite.algs import KeyExchangeAlg, SigningAlg
@@ -234,14 +236,14 @@ class PreKeyBundle(Constructor):
     def to_bytes(self) -> bytes:
         parts = [
             self.constructor_pack(),
-            self.encode_field(self.identity_signing.data),
+            encode_bytes16(self.identity_signing.data),
             encode_u32(int(self.identity_signing.algorithm)),
         ]
         if self.identity_agreement is not None:
             parts.extend(
                 [
                     b"\x01",
-                    self.encode_field(self.identity_agreement.data),
+                    encode_bytes16(self.identity_agreement.data),
                     encode_u32(int(self.identity_agreement.algorithm)),
                 ]
             )
@@ -250,9 +252,9 @@ class PreKeyBundle(Constructor):
         parts.extend(
             [
                 struct.pack(">I", self.signed_prekey_id),
-                self.encode_field(self.signed_prekey.data),
+                encode_bytes16(self.signed_prekey.data),
                 encode_u32(int(self.signed_prekey.algorithm)),
-                self.encode_field(self.signed_prekey_signature),
+                encode_bytes16(self.signed_prekey_signature),
             ]
         )
         if self.one_time_prekey is None:
@@ -262,7 +264,7 @@ class PreKeyBundle(Constructor):
                 [
                     b"\x01",
                     struct.pack(">I", self.one_time_prekey_id or 0),
-                    self.encode_field(self.one_time_prekey.data),
+                    encode_bytes16(self.one_time_prekey.data),
                     encode_u32(int(self.one_time_prekey.algorithm)),
                 ]
             )
@@ -273,9 +275,9 @@ class PreKeyBundle(Constructor):
                 [
                     b"\x01",
                     struct.pack(">I", self.pq_prekey_id or 0),
-                    self.encode_field(self.pq_prekey.data),
+                    encode_bytes16(self.pq_prekey.data),
                     encode_u32(int(self.pq_prekey.algorithm)),
-                    self.encode_field(self.pq_prekey_signature or b""),
+                    encode_bytes16(self.pq_prekey_signature or b""),
                 ]
             )
         return b"".join(parts)
@@ -287,13 +289,13 @@ class PreKeyBundle(Constructor):
             raise SerializationError("empty prekey bundle")
         offset = cls.constructor_expect(view)
 
-        identity_data, offset = cls.read_field(view, offset)
+        identity_data, offset = read_bytes16(view, offset)
         identity_alg_id, offset = read_u32(view, offset)
         has_agreement = view[offset]
         offset += 1
         identity_agreement = None
         if has_agreement:
-            agreement_data, offset = cls.read_field(view, offset)
+            agreement_data, offset = read_bytes16(view, offset)
             agreement_alg_id, offset = read_u32(view, offset)
             identity_agreement = PublicKey(
                 agreement_data,
@@ -303,9 +305,9 @@ class PreKeyBundle(Constructor):
             raise SerializationError("truncated signed prekey id")
         signed_prekey_id = struct.unpack_from(">I", view, offset)[0]
         offset += 4
-        spk_data, offset = cls.read_field(view, offset)
+        spk_data, offset = read_bytes16(view, offset)
         spk_alg_id, offset = read_u32(view, offset)
-        signature, offset = cls.read_field(view, offset)
+        signature, offset = read_bytes16(view, offset)
         has_opk = view[offset]
         offset += 1
         one_time = None
@@ -315,7 +317,7 @@ class PreKeyBundle(Constructor):
                 raise SerializationError("truncated one-time prekey id")
             one_time_id = struct.unpack_from(">I", view, offset)[0]
             offset += 4
-            opk_data, offset = cls.read_field(view, offset)
+            opk_data, offset = read_bytes16(view, offset)
             opk_alg_id, offset = read_u32(view, offset)
             one_time = PublicKey(opk_data, KeyExchangeAlg.from_id(opk_alg_id))
         pq_prekey = None
@@ -330,9 +332,9 @@ class PreKeyBundle(Constructor):
                     raise SerializationError("truncated PQ prekey id")
                 pq_prekey_id = struct.unpack_from(">I", view, offset)[0]
                 offset += 4
-                pq_data, offset = cls.read_field(view, offset)
+                pq_data, offset = read_bytes16(view, offset)
                 pq_alg_id, offset = read_u32(view, offset)
-                pq_prekey_signature, offset = cls.read_field(view, offset)
+                pq_prekey_signature, offset = read_bytes16(view, offset)
                 pq_prekey = PublicKey(pq_data, KeyExchangeAlg.from_id(pq_alg_id))
         if offset != len(view):
             raise SerializationError("trailing bytes in prekey bundle")
@@ -351,20 +353,3 @@ class PreKeyBundle(Constructor):
             pq_prekey=pq_prekey,
             pq_prekey_signature=pq_prekey_signature,
         )
-
-    @staticmethod
-    def encode_field(value: bytes) -> bytes:
-        if len(value) > 0xFFFF:
-            raise SerializationError("field too large")
-        return struct.pack(">H", len(value)) + value
-
-    @staticmethod
-    def read_field(view: memoryview, offset: int) -> tuple[bytes, int]:
-        if offset + 2 > len(view):
-            raise SerializationError("truncated prekey bundle field")
-        length = struct.unpack_from(">H", view, offset)[0]
-        offset += 2
-        if offset + length > len(view):
-            raise SerializationError("truncated prekey bundle field body")
-        value = bytes(view[offset:offset + length])
-        return value, offset + length

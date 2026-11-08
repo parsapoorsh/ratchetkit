@@ -9,6 +9,8 @@ from ratchetkit.errors import SerializationError
 from ratchetkit.packing import (
     Constructor,
     ConstructorId,
+    encode_bytes16,
+    read_bytes16,
 )
 from ratchetkit.ratchet.message.base import RatchetMessage
 
@@ -27,7 +29,7 @@ class DoubleRatchetMessage(RatchetMessage, Constructor):
 
     def header_bytes(self) -> bytes:
         return (
-            self.encode_field(self.ratchet_public)
+            encode_bytes16(self.ratchet_public)
             + struct.pack(">II", self.previous_counter, self.counter)
         )
 
@@ -35,8 +37,8 @@ class DoubleRatchetMessage(RatchetMessage, Constructor):
         return (
             self.constructor_pack()
             + self.header_bytes()
-            + self.encode_field(self.ciphertext)
-            + self.encode_field(self.mac)
+            + encode_bytes16(self.ciphertext)
+            + encode_bytes16(self.mac)
         )
 
     @classmethod
@@ -46,13 +48,13 @@ class DoubleRatchetMessage(RatchetMessage, Constructor):
             raise SerializationError("empty ratchet message")
         offset = cls.constructor_expect(view)
 
-        ratchet_public, offset = cls.read_field(view, offset)
+        ratchet_public, offset = read_bytes16(view, offset)
         if offset + 8 > len(view):
             raise SerializationError("truncated ratchet message counters")
         previous_counter, counter = struct.unpack_from(">II", view, offset)
         offset += 8
-        ciphertext, offset = cls.read_field(view, offset)
-        mac, offset = cls.read_field(view, offset)
+        ciphertext, offset = read_bytes16(view, offset)
+        mac, offset = read_bytes16(view, offset)
         if offset != len(view):
             raise SerializationError("trailing bytes in ratchet message")
         return cls(

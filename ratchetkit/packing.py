@@ -99,6 +99,26 @@ def read_bytes(
     return bytes(data[offset:offset + length]), offset + length
 
 
+def encode_bytes16(value: bytes) -> bytes:
+    """Length-prefixed bytes (u16 big-endian). Used by protocol packets."""
+    if len(value) > 0xFFFF:
+        raise SerializationError("field too large")
+    return struct.pack(">H", len(value)) + value
+
+
+def read_bytes16(
+    data: bytes | memoryview,
+    offset: int,
+) -> tuple[bytes, int]:
+    if offset + 2 > len(data):
+        raise SerializationError("truncated field length")
+    length = struct.unpack_from(">H", data, offset)[0]
+    offset += 2
+    if offset + length > len(data):
+        raise SerializationError("truncated field body")
+    return bytes(data[offset:offset + length]), offset + length
+
+
 def encode_u32(value: int) -> bytes:
     if value < 0 or value > 0xFFFFFFFF:
         raise SerializationError("u32 out of range")

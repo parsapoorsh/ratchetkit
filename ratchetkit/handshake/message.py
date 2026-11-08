@@ -10,9 +10,11 @@ from ratchetkit.suite.algs import KeyExchangeAlg, SigningAlg
 from ratchetkit.keys.keypair import PublicKey, SigningPublicKey
 from ratchetkit.packing import (
     Constructor,
-    encode_u32,
-    read_u32,
     ConstructorId,
+    encode_bytes16,
+    encode_u32,
+    read_bytes16,
+    read_u32,
 )
 
 
@@ -62,14 +64,14 @@ class InitialMessageX3DH(Constructor):
     def encode_body(self) -> bytes:
         """Serialize fields after the constructor id."""
         parts = [
-            self.encode_field(self.identity_signing.data),
+            encode_bytes16(self.identity_signing.data),
             encode_u32(int(self.identity_signing.algorithm)),
         ]
         if self.identity_agreement is not None:
             parts.extend(
                 [
                     b"\x01",
-                    self.encode_field(self.identity_agreement.data),
+                    encode_bytes16(self.identity_agreement.data),
                     encode_u32(int(self.identity_agreement.algorithm)),
                 ]
             )
@@ -77,23 +79,23 @@ class InitialMessageX3DH(Constructor):
             parts.append(b"\x00")
         parts.extend(
             [
-                self.encode_field(self.ephemeral_public.data),
+                encode_bytes16(self.ephemeral_public.data),
                 encode_u32(int(self.ephemeral_public.algorithm)),
                 bytes([len(self.kem_ciphertexts)]),
             ]
         )
         for ct in self.kem_ciphertexts:
-            parts.append(self.encode_field(ct))
+            parts.append(encode_bytes16(ct))
         parts.append(struct.pack(">I", self.signed_prekey_id))
         if self.one_time_prekey_id is None:
             parts.append(b"\x00")
         else:
             parts.extend([b"\x01", struct.pack(">I", self.one_time_prekey_id)])
-        parts.append(self.encode_field(self.signature))
+        parts.append(encode_bytes16(self.signature))
         if self.ratchet_public is None:
             parts.append(b"\x00")
         else:
-            parts.extend([b"\x01", self.encode_field(self.ratchet_public)])
+            parts.extend([b"\x01", encode_bytes16(self.ratchet_public)])
         return b"".join(parts)
 
     def to_bytes(self) -> bytes:
@@ -102,25 +104,25 @@ class InitialMessageX3DH(Constructor):
     @classmethod
     def decode_body(cls, view: memoryview, offset: int) -> tuple[dict, int]:
         """Parse X3DH fields starting at ``offset``; return kwargs and new offset."""
-        identity_data, offset = cls.read_field(view, offset)
+        identity_data, offset = read_bytes16(view, offset)
         identity_alg_id, offset = read_u32(view, offset)
         has_agreement = view[offset]
         offset += 1
         identity_agreement = None
         if has_agreement:
-            agreement_data, offset = cls.read_field(view, offset)
+            agreement_data, offset = read_bytes16(view, offset)
             agreement_alg_id, offset = read_u32(view, offset)
             identity_agreement = PublicKey(
                 agreement_data,
                 KeyExchangeAlg.from_id(agreement_alg_id),
             )
-        ephemeral_data, offset = cls.read_field(view, offset)
+        ephemeral_data, offset = read_bytes16(view, offset)
         ephemeral_alg_id, offset = read_u32(view, offset)
         ct_count = view[offset]
         offset += 1
         ciphertexts = []
         for _ in range(ct_count):
-            ct, offset = cls.read_field(view, offset)
+            ct, offset = read_bytes16(view, offset)
             ciphertexts.append(ct)
         if offset + 4 > len(view):
             raise SerializationError("truncated signed prekey id")
@@ -134,14 +136,14 @@ class InitialMessageX3DH(Constructor):
                 raise SerializationError("truncated one-time prekey id")
             one_time_prekey_id = struct.unpack_from(">I", view, offset)[0]
             offset += 4
-        signature, offset = cls.read_field(view, offset)
+        signature, offset = read_bytes16(view, offset)
         if offset >= len(view):
             raise SerializationError("truncated initial message ratchet flag")
         has_ratchet = view[offset]
         offset += 1
         ratchet_public = None
         if has_ratchet:
-            ratchet_public, offset = cls.read_field(view, offset)
+            ratchet_public, offset = read_bytes16(view, offset)
         fields = dict(
             identity_signing=SigningPublicKey(
                 identity_data,
@@ -171,23 +173,6 @@ class InitialMessageX3DH(Constructor):
             raise SerializationError("trailing bytes in initial message")
         return cls(**fields)
 
-    @staticmethod
-    def encode_field(value: bytes) -> bytes:
-        if len(value) > 0xFFFF:
-            raise SerializationError("field too large")
-        return struct.pack(">H", len(value)) + value
-
-    @staticmethod
-    def read_field(view: memoryview, offset: int) -> tuple[bytes, int]:
-        if offset + 2 > len(view):
-            raise SerializationError("truncated initial message field")
-        length = struct.unpack_from(">H", view, offset)[0]
-        offset += 2
-        if offset + length > len(view):
-            raise SerializationError("truncated initial message field body")
-        value = bytes(view[offset : offset + length])
-        return value, offset + length
-
 
 @dataclass
 class InitialMessagePQXDH(InitialMessageX3DH):
@@ -206,7 +191,7 @@ class InitialMessagePQXDH(InitialMessageX3DH):
         return (
             super().encode_body()
             + struct.pack(">I", self.pq_prekey_id)
-            + self.encode_field(self.pq_ciphertext)
+            + encode_bytes16(self.pq_ciphertext)
         )
 
     @classmethod
@@ -220,7 +205,7 @@ class InitialMessagePQXDH(InitialMessageX3DH):
             raise SerializationError("truncated PQ prekey id")
         pq_prekey_id = struct.unpack_from(">I", view, offset)[0]
         offset += 4
-        pq_ciphertext, offset = cls.read_field(view, offset)
+        pq_ciphertext, offset = read_bytes16(view, offset)
         if offset != len(view):
             raise SerializationError("trailing bytes in PQXDH initial message")
         return cls(
