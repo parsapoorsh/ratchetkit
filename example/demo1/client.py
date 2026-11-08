@@ -12,7 +12,6 @@ from example.common import (
 from example.suite_config import ACTIVE_SUITE
 from ratchetkit.keys.identity import IdentityKeyPair
 from ratchetkit.keys.prekey import PreKeyBundle
-from ratchetkit.session import Session
 
 
 def main() -> None:
@@ -39,7 +38,7 @@ def main() -> None:
         )
 
         # --- 2. X3DH once -> Double or Triple Ratchet session ---
-        session, initial = Session.initiate(alice, bundle)
+        session, initial = suite.initiate(alice, bundle)
         link.send(initial.to_bytes())
         print(
             f"[alice] X3DH initiate  "

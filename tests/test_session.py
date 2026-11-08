@@ -29,15 +29,15 @@ def test_ratchet_message_bytes_roundtrip(pair):
     suite = make_suite(kind)
     alice_id = IdentityKeyPair.generate(suite)
     bob_id = IdentityKeyPair.generate(suite)
-    spk = SignedPreKey.generate(1, bob_id)
+    spk = SignedPreKey.generate(1, bob_id, suite)
     opk = OneTimePreKey.generate(1, suite)
     if kind == "triple":
         pq = suite.generate_pq_prekey(1, bob_id)
         bundle = suite.create_bundle(bob_id, spk, pq, opk)
-        alice, initial = Session.initiate(alice_id, bundle)
+        alice, initial = suite.initiate(alice_id, bundle)
         first = alice.encrypt(b"wire")
         restored = type(first).from_bytes(first.to_bytes(), suite)
-        bob, plain = Session.accept(
+        bob, plain = suite.accept(
             bob_id,
             spk,
             initial,
@@ -47,10 +47,10 @@ def test_ratchet_message_bytes_roundtrip(pair):
         )
     else:
         bundle = suite.create_bundle(bob_id, spk, opk)
-        alice, initial = Session.initiate(alice_id, bundle)
+        alice, initial = suite.initiate(alice_id, bundle)
         first = alice.encrypt(b"wire")
         restored = type(first).from_bytes(first.to_bytes(), suite)
-        bob, plain = Session.accept(bob_id, spk, initial, restored, opk)
+        bob, plain = suite.accept(bob_id, spk, initial, restored, opk)
     assert plain == b"wire"
 
 
@@ -91,15 +91,15 @@ def test_session_accept_extra_associated_data(pair):
     suite = make_suite(kind)
     alice_id = IdentityKeyPair.generate(suite)
     bob_id = IdentityKeyPair.generate(suite)
-    spk = SignedPreKey.generate(1, bob_id)
+    spk = SignedPreKey.generate(1, bob_id, suite)
     opk = OneTimePreKey.generate(1, suite)
     extra = b"first-extra"
     if kind == "triple":
         pq = suite.generate_pq_prekey(1, bob_id)
         bundle = suite.create_bundle(bob_id, spk, pq, opk)
-        alice, initial = Session.initiate(alice_id, bundle)
+        alice, initial = suite.initiate(alice_id, bundle)
         first = alice.encrypt(b"hello-ad", associated_data=extra)
-        bob, plain = Session.accept(
+        bob, plain = suite.accept(
             bob_id,
             spk,
             initial,
@@ -110,9 +110,9 @@ def test_session_accept_extra_associated_data(pair):
         )
     else:
         bundle = suite.create_bundle(bob_id, spk, opk)
-        alice, initial = Session.initiate(alice_id, bundle)
+        alice, initial = suite.initiate(alice_id, bundle)
         first = alice.encrypt(b"hello-ad", associated_data=extra)
-        bob, plain = Session.accept(
+        bob, plain = suite.accept(
             bob_id,
             spk,
             initial,

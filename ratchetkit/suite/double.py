@@ -46,6 +46,8 @@ if TYPE_CHECKING:
         SignedPqPreKey,
         SignedPreKey,
     )
+    from ratchetkit.ratchet.message.base import RatchetMessage
+    from ratchetkit.session import Session
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -178,6 +180,72 @@ class CryptoSuiteDoubleRatchet(Constructor):
     def load_ratchet(self, data: bytes) -> DoubleRatchet:
         """Restore ratchet state saved by ``Ratchet.to_bytes``."""
         return DoubleRatchet.from_bytes(data, self)
+
+    def initiate(
+        self,
+        our_identity: IdentityKeyPair,
+        their_bundle: PreKeyBundle,
+    ) -> tuple[Session, InitialMessageX3DH]:
+        """Alice: handshake + open a session."""
+        from ratchetkit.session import Session
+
+        result = self.handshake().initiate(our_identity, their_bundle)
+        ratchet = self.open_initiate(result, their_bundle)
+        associated = (
+            our_identity.signing.public.data + their_bundle.identity_signing.data
+        )
+        session = Session(
+            suite=self,
+            ratchet=ratchet,
+            associated_data=associated,
+        )
+        return session, result.initial_message
+
+    def accept(
+        self,
+        our_identity: IdentityKeyPair,
+        our_signed_prekey: SignedPreKey,
+        initial: InitialMessageX3DH,
+        message: RatchetMessage,
+        our_one_time_prekey: OneTimePreKey | None = None,
+        associated_data: bytes = b"",
+        our_pq_prekey: SignedPqPreKey | None = None,
+    ) -> tuple[Session, bytes]:
+        """Bob: finish handshake, open a session, decrypt the first message.
+
+        ``associated_data`` is extra AD for the first message only; it is
+        appended to the handshake identity AD (same rule as Session.decrypt).
+
+        Triple / PQXDH sessions require ``our_pq_prekey`` matching the bundle.
+        """
+        from ratchetkit.session import Session
+
+        if not isinstance(message, self.Message):
+            raise TypeError(
+                f"{type(self).__name__} requires {self.Message.__name__}"
+            )
+        shared = self.respond_handshake(
+            our_identity,
+            our_signed_prekey,
+            initial,
+            our_one_time_prekey,
+            our_pq_prekey,
+        )
+        ratchet = self.open_accept(
+            shared,
+            initial,
+            message,
+            our_signed_prekey,
+        )
+        associated = (
+            initial.identity_signing.data + our_identity.signing.public.data
+        )
+        session = Session(
+            suite=self,
+            ratchet=ratchet,
+            associated_data=associated,
+        )
+        return session, session.decrypt(message, associated_data)
 
     def to_bytes(self) -> bytes:
         return (

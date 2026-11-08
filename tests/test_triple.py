@@ -6,7 +6,7 @@ from ratchetkit.errors import InvalidMessage
 from ratchetkit.keys.identity import IdentityKeyPair
 from ratchetkit.keys.prekey import OneTimePreKey, SignedPreKey
 from ratchetkit.ratchet import TripleRatchet, TripleRatchetMessage
-from ratchetkit.session import Session
+
 from ratchetkit.suite import (
     SigningAlg,
     CipherAlg,
@@ -31,15 +31,15 @@ def setup_triple(n_chunks=2):
     suite = triple_suite(n_chunks)
     alice = IdentityKeyPair.generate(suite)
     bob = IdentityKeyPair.generate(suite)
-    spk = SignedPreKey.generate(1, bob)
+    spk = SignedPreKey.generate(1, bob, suite)
     opk = OneTimePreKey.generate(1, suite)
     pq = suite.generate_pq_prekey(1, bob)
     bundle = suite.create_bundle(bob, spk, pq, opk)
-    alice_sess, initial = Session.initiate(alice, bundle)
+    alice_sess, initial = suite.initiate(alice, bundle)
     assert isinstance(alice_sess.ratchet, TripleRatchet)
     first = alice_sess.encrypt(b"hi")
     assert isinstance(first, TripleRatchetMessage)
-    bob_sess, plain = Session.accept(
+    bob_sess, plain = suite.accept(
         bob,
         spk,
         initial,
@@ -100,13 +100,13 @@ def test_triple_with_mlkem1024():
     )
     alice = IdentityKeyPair.generate(suite)
     bob = IdentityKeyPair.generate(suite)
-    spk = SignedPreKey.generate(1, bob)
+    spk = SignedPreKey.generate(1, bob, suite)
     opk = OneTimePreKey.generate(1, suite)
     pq = suite.generate_pq_prekey(1, bob)
     bundle = suite.create_bundle(bob, spk, pq, opk)
-    a_sess, initial = Session.initiate(alice, bundle)
+    a_sess, initial = suite.initiate(alice, bundle)
     first = a_sess.encrypt(b"pq")
-    b_sess, plain = Session.accept(
+    b_sess, plain = suite.accept(
         bob,
         spk,
         initial,

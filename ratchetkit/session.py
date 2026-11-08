@@ -1,15 +1,8 @@
-"""High-level Session: suite handshake wired into the matching ratchet."""
+"""Conversation session: encrypt / decrypt + binary persistence."""
 from __future__ import annotations
 
 
 from ratchetkit.errors import SerializationError
-from ratchetkit.keys.identity import IdentityKeyPair
-from ratchetkit.keys.prekey import (
-    OneTimePreKey,
-    PreKeyBundle,
-    SignedPqPreKey,
-    SignedPreKey,
-)
 from ratchetkit.packing import (
     Constructor,
     ConstructorId,
@@ -21,14 +14,13 @@ from ratchetkit.ratchet.protocol import Ratchet
 from ratchetkit.suite.double import CryptoSuiteDoubleRatchet
 from ratchetkit.suite.double import CryptoSuiteDoubleRatchet as CryptoSuite
 from ratchetkit.suite.triple import CryptoSuiteTripleRatchet
-from ratchetkit.handshake.message import InitialMessageX3DH
 
 
 class Session(Constructor):
-    """Conversation session: encrypt / decrypt + binary persistence.
+    """Live ratchet half: encrypt, decrypt, and persist.
 
-    ``CryptoSuiteDoubleRatchet`` uses classical X3DH + Double Ratchet.
-    ``CryptoSuiteTripleRatchet`` uses PQXDH + Triple Ratchet.
+    Opened by ``suite.initiate`` / ``suite.accept``. Restored with
+    :meth:`from_bytes`.
     """
 
     CONSTRUCTOR_ID = ConstructorId.SESSION
@@ -42,72 +34,6 @@ class Session(Constructor):
         self.suite = suite
         self.ratchet = ratchet
         self.associated_data = associated_data
-
-    @classmethod
-    def initiate(
-        cls,
-        our_identity: IdentityKeyPair,
-        their_bundle: PreKeyBundle,
-    ) -> tuple[Session, InitialMessageX3DH]:
-        """Alice: suite handshake + open the suite's ratchet."""
-        suite = our_identity.require_suite()
-        result = suite.handshake().initiate(our_identity, their_bundle)
-        ratchet = suite.open_initiate(result, their_bundle)
-        associated = (
-            our_identity.signing.public.data + their_bundle.identity_signing.data
-        )
-        session = cls(
-            suite=suite,
-            ratchet=ratchet,
-            associated_data=associated,
-        )
-        return session, result.initial_message
-
-    @classmethod
-    def accept(
-        cls,
-        our_identity: IdentityKeyPair,
-        our_signed_prekey: SignedPreKey,
-        initial: InitialMessageX3DH,
-        message: RatchetMessage,
-        our_one_time_prekey: OneTimePreKey | None = None,
-        associated_data: bytes = b"",
-        our_pq_prekey: SignedPqPreKey | None = None,
-    ) -> tuple[Session, bytes]:
-        """Bob: finish handshake, open matching ratchet, decrypt first message.
-
-        ``associated_data`` is extra AD for the first message only; it is
-        appended to the handshake identity AD (same rule as :meth:`decrypt`).
-
-        Triple / PQXDH sessions require ``our_pq_prekey`` matching the bundle.
-        """
-        suite = our_identity.require_suite()
-        if not isinstance(message, suite.Message):
-            raise TypeError(
-                f"{type(suite).__name__} requires {suite.Message.__name__}"
-            )
-        shared = suite.respond_handshake(
-            our_identity,
-            our_signed_prekey,
-            initial,
-            our_one_time_prekey,
-            our_pq_prekey,
-        )
-        ratchet = suite.open_accept(
-            shared,
-            initial,
-            message,
-            our_signed_prekey,
-        )
-        associated = (
-            initial.identity_signing.data + our_identity.signing.public.data
-        )
-        session = cls(
-            suite=suite,
-            ratchet=ratchet,
-            associated_data=associated,
-        )
-        return session, session.decrypt(message, associated_data)
 
     def encrypt(
         self,

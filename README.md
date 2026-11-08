@@ -43,15 +43,15 @@ suite = CryptoSuiteDoubleRatchet(
 
 alice = IdentityKeyPair.generate(suite)
 bob = IdentityKeyPair.generate(suite)
-spk = SignedPreKey.generate(1, bob)
+spk = SignedPreKey.generate(1, bob, suite)
 opk = OneTimePreKey.generate(1, suite)
 bundle = suite.create_bundle(bob, spk, opk)
 
-alice_session, initial = Session.initiate(alice, bundle)
+alice_session, initial = suite.initiate(alice, bundle)
 msg = alice_session.encrypt(b"hello")
 # Wire formats: initial.to_bytes(), msg.to_bytes()
 
-bob_session, plaintext = Session.accept(bob, spk, initial, msg, opk)
+bob_session, plaintext = suite.accept(bob, spk, initial, msg, opk)
 assert plaintext == b"hello"
 
 reply = bob_session.encrypt(b"hi back")
@@ -87,14 +87,14 @@ suite = CryptoSuiteTripleRatchet(
 
 alice = IdentityKeyPair.generate(suite)
 bob = IdentityKeyPair.generate(suite)
-spk = SignedPreKey.generate(1, bob)
+spk = SignedPreKey.generate(1, bob, suite)
 opk = OneTimePreKey.generate(1, suite)
 pq = suite.generate_pq_prekey(1, bob)
 bundle = suite.create_bundle(bob, spk, pq, opk)
 
-alice_session, initial = Session.initiate(alice, bundle)
+alice_session, initial = suite.initiate(alice, bundle)
 msg = alice_session.encrypt(b"triple hello")
-bob_session, plain = Session.accept(
+bob_session, plain = suite.accept(
     bob, spk, initial, msg, opk, our_pq_prekey=pq,
 )
 assert plain == b"triple hello"

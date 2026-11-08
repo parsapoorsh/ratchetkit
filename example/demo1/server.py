@@ -13,7 +13,6 @@ from example.common import (
 from example.suite_config import ACTIVE_SUITE
 from ratchetkit.keys.identity import IdentityKeyPair
 from ratchetkit.keys.prekey import OneTimePreKey, SignedPreKey
-from ratchetkit.session import Session
 from ratchetkit.suite.triple import CryptoSuiteTripleRatchet
 
 
@@ -22,7 +21,7 @@ def main() -> None:
     Message = suite.Message
     InitialMessage = suite.InitialMessage
     bob = IdentityKeyPair.generate(suite)
-    spk = SignedPreKey.generate(1, bob)
+    spk = SignedPreKey.generate(1, bob, suite)
     opk = OneTimePreKey.generate(42, suite)
     pq = (
         suite.generate_pq_prekey(1, bob)
@@ -47,7 +46,7 @@ def main() -> None:
             link.expect(InitialMessage.CONSTRUCTOR_ID),
         )
         first = Message.from_bytes(link.recv(), suite)
-        session, plain = Session.accept(
+        session, plain = suite.accept(
             bob,
             spk,
             initial,

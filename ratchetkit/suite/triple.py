@@ -79,7 +79,7 @@ class CryptoSuiteTripleRatchet(CryptoSuiteDoubleRatchet):
         """Generate a signed PQ prekey with this suite's ``pq_kem``."""
         from ratchetkit.keys.prekey import SignedPqPreKey
 
-        return SignedPqPreKey.generate(key_id, identity, self.pq_kem)
+        return SignedPqPreKey.generate(key_id, identity, self, self.pq_kem)
 
     def create_bundle(
         self,
@@ -107,11 +107,11 @@ class CryptoSuiteTripleRatchet(CryptoSuiteDoubleRatchet):
         """Finish PQXDH; ``our_pq_prekey`` is required."""
         if our_pq_prekey is None:
             raise ValueError(
-                "Session.accept on a Triple suite requires our_pq_prekey"
+                "accept on a Triple suite requires our_pq_prekey"
             )
         if not isinstance(initial, InitialMessagePQXDH):
             raise ValueError(
-                "Session.accept on a Triple suite requires InitialMessagePQXDH"
+                "accept on a Triple suite requires InitialMessagePQXDH"
             )
         return self.handshake().respond(
             our_identity,

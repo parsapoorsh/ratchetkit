@@ -10,7 +10,7 @@ from ratchetkit.handshake import (
 from ratchetkit.handshake.message import InitialMessagePQXDH
 from ratchetkit.keys.identity import IdentityKeyPair
 from ratchetkit.keys.prekey import OneTimePreKey, SignedPreKey
-from ratchetkit.session import Session
+
 from ratchetkit.suite import (
     SigningAlg,
     CipherAlg,
@@ -40,7 +40,7 @@ def test_suite_create_bundle_double():
         signing=SigningAlg.ED25519,
     )
     bob = IdentityKeyPair.generate(suite)
-    spk = SignedPreKey.generate(1, bob)
+    spk = SignedPreKey.generate(1, bob, suite)
     opk = OneTimePreKey.generate(1, suite)
     bundle = suite.create_bundle(bob, spk, opk)
     assert bundle.pq_prekey is None
@@ -50,7 +50,7 @@ def test_suite_create_bundle_double():
 def test_suite_create_bundle_triple_requires_pq_prekey():
     suite = triple_suite()
     bob = IdentityKeyPair.generate(suite)
-    spk = SignedPreKey.generate(1, bob)
+    spk = SignedPreKey.generate(1, bob, suite)
     opk = OneTimePreKey.generate(1, suite)
     with pytest.raises(TypeError):
         suite.create_bundle(bob, spk)  # type: ignore[call-arg]
@@ -65,7 +65,7 @@ def test_pqxdh_both_sides_same_secret():
     suite = triple_suite()
     alice = IdentityKeyPair.generate(suite)
     bob = IdentityKeyPair.generate(suite)
-    spk = SignedPreKey.generate(1, bob)
+    spk = SignedPreKey.generate(1, bob, suite)
     opk = OneTimePreKey.generate(1, suite)
     pq = suite.generate_pq_prekey(1, bob)
     hs = suite.handshake()
@@ -81,7 +81,7 @@ def test_pqxdh_without_one_time_prekey():
     suite = triple_suite()
     alice = IdentityKeyPair.generate(suite)
     bob = IdentityKeyPair.generate(suite)
-    spk = SignedPreKey.generate(1, bob)
+    spk = SignedPreKey.generate(1, bob, suite)
     pq = suite.generate_pq_prekey(1, bob)
     hs = suite.handshake()
     bundle = hs.create_bundle(bob, spk, pq, None)
@@ -94,7 +94,7 @@ def test_pqxdh_bad_signature_rejected():
     suite = triple_suite()
     alice = IdentityKeyPair.generate(suite)
     bob = IdentityKeyPair.generate(suite)
-    spk = SignedPreKey.generate(1, bob)
+    spk = SignedPreKey.generate(1, bob, suite)
     opk = OneTimePreKey.generate(1, suite)
     pq = suite.generate_pq_prekey(1, bob)
     hs = suite.handshake()
@@ -121,7 +121,7 @@ def test_pqxdh_ciphertext_swap_rejected():
     suite = triple_suite()
     alice = IdentityKeyPair.generate(suite)
     bob = IdentityKeyPair.generate(suite)
-    spk = SignedPreKey.generate(1, bob)
+    spk = SignedPreKey.generate(1, bob, suite)
     opk = OneTimePreKey.generate(1, suite)
     pq = suite.generate_pq_prekey(1, bob)
     hs = suite.handshake()
@@ -149,7 +149,7 @@ def test_pqxdh_ciphertext_swap_rejected():
 def test_x3dh_rejects_pq_bundle():
     suite = triple_suite()
     bob = IdentityKeyPair.generate(suite)
-    spk = SignedPreKey.generate(1, bob)
+    spk = SignedPreKey.generate(1, bob, suite)
     opk = OneTimePreKey.generate(1, suite)
     pq = suite.generate_pq_prekey(1, bob)
     bundle = suite.create_bundle(bob, spk, pq, opk)
@@ -163,14 +163,14 @@ def test_session_triple_via_pqxdh():
     suite = triple_suite()
     alice = IdentityKeyPair.generate(suite)
     bob = IdentityKeyPair.generate(suite)
-    spk = SignedPreKey.generate(1, bob)
+    spk = SignedPreKey.generate(1, bob, suite)
     opk = OneTimePreKey.generate(1, suite)
     pq = suite.generate_pq_prekey(1, bob)
     bundle = suite.create_bundle(bob, spk, pq, opk)
-    a_sess, initial = Session.initiate(alice, bundle)
+    a_sess, initial = suite.initiate(alice, bundle)
     assert initial.pq_ciphertext is not None
     first = a_sess.encrypt(b"pq-session")
-    b_sess, plain = Session.accept(
+    b_sess, plain = suite.accept(
         bob,
         spk,
         initial,
@@ -185,7 +185,7 @@ def test_session_triple_via_pqxdh():
 def test_bundle_and_initial_roundtrip_with_pq_fields():
     suite = triple_suite()
     bob = IdentityKeyPair.generate(suite)
-    spk = SignedPreKey.generate(1, bob)
+    spk = SignedPreKey.generate(1, bob, suite)
     opk = OneTimePreKey.generate(3, suite)
     pq = suite.generate_pq_prekey(9, bob)
     bundle = suite.create_bundle(bob, spk, pq, opk)

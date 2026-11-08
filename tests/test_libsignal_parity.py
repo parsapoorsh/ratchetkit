@@ -20,7 +20,7 @@ from ratchetkit.errors import (
 from ratchetkit.keys.identity import IdentityKeyPair
 from ratchetkit.keys.prekey import OneTimePreKey, PreKeyBundle, SignedPreKey
 from ratchetkit.ratchet.limits import RatchetLimits
-from ratchetkit.session import Session
+
 from ratchetkit.handshake import ExtendedTripleDiffieHellman
 from ratchetkit.handshake.message import InitialMessagePQXDH, InitialMessageX3DH
 from tests.helpers import (
@@ -148,7 +148,7 @@ def test_bad_signed_prekey_signature():
     suite = make_suite("double")
     alice = IdentityKeyPair.generate(suite)
     bob = IdentityKeyPair.generate(suite)
-    spk = SignedPreKey.generate(1, bob)
+    spk = SignedPreKey.generate(1, bob, suite)
     opk = OneTimePreKey.generate(1, suite)
     x3dh = ExtendedTripleDiffieHellman(suite)
     bundle = x3dh.create_bundle(bob, spk, opk)
@@ -173,19 +173,19 @@ def test_corrupted_first_message_accept_then_honest_retry(pair):
     suite = make_suite(kind)
     alice_id = IdentityKeyPair.generate(suite)
     bob_id = IdentityKeyPair.generate(suite)
-    spk = SignedPreKey.generate(1, bob_id)
+    spk = SignedPreKey.generate(1, bob_id, suite)
     opk = OneTimePreKey.generate(1, suite)
     if kind == "triple":
         pq = suite.generate_pq_prekey(1, bob_id)
         bundle = suite.create_bundle(bob_id, spk, pq, opk)
-        alice, initial = Session.initiate(alice_id, bundle)
+        alice, initial = suite.initiate(alice_id, bundle)
         first = alice.encrypt(b"first-ok")
         corrupted = forge_tampered(
             first,
             ciphertext=bytes([first.ciphertext[0] ^ 0x01]) + first.ciphertext[1:],
         )
         with pytest.raises(InvalidMessage):
-            Session.accept(
+            suite.accept(
                 bob_id,
                 spk,
                 initial,
@@ -194,7 +194,7 @@ def test_corrupted_first_message_accept_then_honest_retry(pair):
                 our_pq_prekey=pq,
             )
         # Honest first message still establishes a session (OPK not library-consumed).
-        bob, plain = Session.accept(
+        bob, plain = suite.accept(
             bob_id,
             spk,
             initial,
@@ -204,16 +204,16 @@ def test_corrupted_first_message_accept_then_honest_retry(pair):
         )
     else:
         bundle = suite.create_bundle(bob_id, spk, opk)
-        alice, initial = Session.initiate(alice_id, bundle)
+        alice, initial = suite.initiate(alice_id, bundle)
         first = alice.encrypt(b"first-ok")
         corrupted = forge_tampered(
             first,
             ciphertext=bytes([first.ciphertext[0] ^ 0x01]) + first.ciphertext[1:],
         )
         with pytest.raises(InvalidMessage):
-            Session.accept(bob_id, spk, initial, corrupted, opk)
+            suite.accept(bob_id, spk, initial, corrupted, opk)
         # Honest first message still establishes a session (OPK not library-consumed).
-        bob, plain = Session.accept(bob_id, spk, initial, first, opk)
+        bob, plain = suite.accept(bob_id, spk, initial, first, opk)
     assert plain == b"first-ok"
     assert bob.decrypt(alice.encrypt(b"follow")) == b"follow"
 
@@ -245,19 +245,19 @@ def test_corrupted_initial_message_rejected(pair):
     suite = make_suite(kind)
     alice_id = IdentityKeyPair.generate(suite)
     bob_id = IdentityKeyPair.generate(suite)
-    spk = SignedPreKey.generate(1, bob_id)
+    spk = SignedPreKey.generate(1, bob_id, suite)
     opk = OneTimePreKey.generate(1, suite)
     if kind == "triple":
         pq = suite.generate_pq_prekey(1, bob_id)
         bundle = suite.create_bundle(bob_id, spk, pq, opk)
-        alice, initial = Session.initiate(alice_id, bundle)
+        alice, initial = suite.initiate(alice_id, bundle)
         first = alice.encrypt(b"x")
         bad_initial = _copy_initial(
             initial,
             signature=bytes([initial.signature[0] ^ 0x5A]) + initial.signature[1:],
         )
         with pytest.raises(InvalidSignature):
-            Session.accept(
+            suite.accept(
                 bob_id,
                 spk,
                 bad_initial,
@@ -267,14 +267,14 @@ def test_corrupted_initial_message_rejected(pair):
             )
     else:
         bundle = suite.create_bundle(bob_id, spk, opk)
-        alice, initial = Session.initiate(alice_id, bundle)
+        alice, initial = suite.initiate(alice_id, bundle)
         first = alice.encrypt(b"x")
         bad_initial = _copy_initial(
             initial,
             signature=bytes([initial.signature[0] ^ 0x5A]) + initial.signature[1:],
         )
         with pytest.raises(InvalidSignature):
-            Session.accept(bob_id, spk, bad_initial, first, opk)
+            suite.accept(bob_id, spk, bad_initial, first, opk)
 
 
 def test_initial_ratchet_public_swap_rejected(pair):
@@ -283,17 +283,17 @@ def test_initial_ratchet_public_swap_rejected(pair):
     suite = make_suite(kind)
     alice_id = IdentityKeyPair.generate(suite)
     bob_id = IdentityKeyPair.generate(suite)
-    spk = SignedPreKey.generate(1, bob_id)
+    spk = SignedPreKey.generate(1, bob_id, suite)
     opk = OneTimePreKey.generate(1, suite)
     if kind == "triple":
         pq = suite.generate_pq_prekey(1, bob_id)
         bundle = suite.create_bundle(bob_id, spk, pq, opk)
-        alice, initial = Session.initiate(alice_id, bundle)
+        alice, initial = suite.initiate(alice_id, bundle)
         first = alice.encrypt(b"x")
         fake = suite.kem.generate_keypair()
         swapped = _copy_initial(initial, ratchet_public=fake.public.data)
         with pytest.raises(InvalidSignature):
-            Session.accept(
+            suite.accept(
                 bob_id,
                 spk,
                 swapped,
@@ -303,12 +303,12 @@ def test_initial_ratchet_public_swap_rejected(pair):
             )
     else:
         bundle = suite.create_bundle(bob_id, spk, opk)
-        alice, initial = Session.initiate(alice_id, bundle)
+        alice, initial = suite.initiate(alice_id, bundle)
         first = alice.encrypt(b"x")
         fake = suite.kem.generate_keypair()
         swapped = _copy_initial(initial, ratchet_public=fake.public.data)
         with pytest.raises(InvalidSignature):
-            Session.accept(bob_id, spk, swapped, first, opk)
+            suite.accept(bob_id, spk, swapped, first, opk)
 
 
 def test_optional_one_time_prekey_dh():
@@ -317,11 +317,11 @@ def test_optional_one_time_prekey_dh():
     suite = make_suite("double")
     alice_id = IdentityKeyPair.generate(suite)
     bob_id = IdentityKeyPair.generate(suite)
-    spk = SignedPreKey.generate(1, bob_id)
+    spk = SignedPreKey.generate(1, bob_id, suite)
     bundle = suite.create_bundle(bob_id, spk)
-    alice, initial = Session.initiate(alice_id, bundle)
+    alice, initial = suite.initiate(alice_id, bundle)
     first = alice.encrypt(b"no-opk")
-    bob, plain = Session.accept(bob_id, spk, initial, first, None)
+    bob, plain = suite.accept(bob_id, spk, initial, first, None)
     assert plain == b"no-opk"
     assert alice.decrypt(bob.encrypt(b"ack")) == b"ack"
 
@@ -363,16 +363,16 @@ def test_associated_data_mismatch_on_accept(pair):
     suite = make_suite(kind)
     alice_id = IdentityKeyPair.generate(suite)
     bob_id = IdentityKeyPair.generate(suite)
-    spk = SignedPreKey.generate(1, bob_id)
+    spk = SignedPreKey.generate(1, bob_id, suite)
     opk = OneTimePreKey.generate(1, suite)
     extra = b"channel-7"
     if kind == "triple":
         pq = suite.generate_pq_prekey(1, bob_id)
         bundle = suite.create_bundle(bob_id, spk, pq, opk)
-        alice, initial = Session.initiate(alice_id, bundle)
+        alice, initial = suite.initiate(alice_id, bundle)
         first = alice.encrypt(b"ad-first", associated_data=extra)
         with pytest.raises(InvalidMessage):
-            Session.accept(
+            suite.accept(
                 bob_id,
                 spk,
                 initial,
@@ -381,7 +381,7 @@ def test_associated_data_mismatch_on_accept(pair):
                 our_pq_prekey=pq,
             )
         with pytest.raises(InvalidMessage):
-            Session.accept(
+            suite.accept(
                 bob_id,
                 spk,
                 initial,
@@ -390,7 +390,7 @@ def test_associated_data_mismatch_on_accept(pair):
                 associated_data=b"wrong",
                 our_pq_prekey=pq,
             )
-        bob, plain = Session.accept(
+        bob, plain = suite.accept(
             bob_id,
             spk,
             initial,
@@ -401,12 +401,12 @@ def test_associated_data_mismatch_on_accept(pair):
         )
     else:
         bundle = suite.create_bundle(bob_id, spk, opk)
-        alice, initial = Session.initiate(alice_id, bundle)
+        alice, initial = suite.initiate(alice_id, bundle)
         first = alice.encrypt(b"ad-first", associated_data=extra)
         with pytest.raises(InvalidMessage):
-            Session.accept(bob_id, spk, initial, first, opk)
+            suite.accept(bob_id, spk, initial, first, opk)
         with pytest.raises(InvalidMessage):
-            Session.accept(
+            suite.accept(
                 bob_id,
                 spk,
                 initial,
@@ -414,7 +414,7 @@ def test_associated_data_mismatch_on_accept(pair):
                 opk,
                 associated_data=b"wrong",
             )
-        bob, plain = Session.accept(
+        bob, plain = suite.accept(
             bob_id,
             spk,
             initial,
@@ -430,16 +430,16 @@ def test_spk_and_opk_id_mismatch_on_respond(pair):
     suite = make_suite(kind)
     alice_id = IdentityKeyPair.generate(suite)
     bob_id = IdentityKeyPair.generate(suite)
-    spk = SignedPreKey.generate(1, bob_id)
+    spk = SignedPreKey.generate(1, bob_id, suite)
     opk = OneTimePreKey.generate(1, suite)
     if kind == "triple":
         pq = suite.generate_pq_prekey(1, bob_id)
         bundle = suite.create_bundle(bob_id, spk, pq, opk)
-        alice, initial = Session.initiate(alice_id, bundle)
+        alice, initial = suite.initiate(alice_id, bundle)
         first = alice.encrypt(b"x")
-        wrong_spk = SignedPreKey.generate(99, bob_id)
+        wrong_spk = SignedPreKey.generate(99, bob_id, suite)
         with pytest.raises(InvalidKey, match="signed prekey id"):
-            Session.accept(
+            suite.accept(
                 bob_id,
                 wrong_spk,
                 initial,
@@ -449,7 +449,7 @@ def test_spk_and_opk_id_mismatch_on_respond(pair):
             )
         wrong_opk = OneTimePreKey.generate(99, suite)
         with pytest.raises(InvalidKey, match="one-time prekey id"):
-            Session.accept(
+            suite.accept(
                 bob_id,
                 spk,
                 initial,
@@ -459,14 +459,14 @@ def test_spk_and_opk_id_mismatch_on_respond(pair):
             )
     else:
         bundle = suite.create_bundle(bob_id, spk, opk)
-        alice, initial = Session.initiate(alice_id, bundle)
+        alice, initial = suite.initiate(alice_id, bundle)
         first = alice.encrypt(b"x")
-        wrong_spk = SignedPreKey.generate(99, bob_id)
+        wrong_spk = SignedPreKey.generate(99, bob_id, suite)
         with pytest.raises(InvalidKey, match="signed prekey id"):
-            Session.accept(bob_id, wrong_spk, initial, first, opk)
+            suite.accept(bob_id, wrong_spk, initial, first, opk)
         wrong_opk = OneTimePreKey.generate(99, suite)
         with pytest.raises(InvalidKey, match="one-time prekey id"):
-            Session.accept(bob_id, spk, initial, first, wrong_opk)
+            suite.accept(bob_id, spk, initial, first, wrong_opk)
 
 
 def test_repeat_first_message_after_accept_rejected(pair):

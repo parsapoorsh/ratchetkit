@@ -22,7 +22,6 @@ if str(ROOT) not in sys.path:
 
 from ratchetkit.keys.identity import IdentityKeyPair
 from ratchetkit.keys.prekey import OneTimePreKey, SignedPreKey
-from ratchetkit.session import Session
 from ratchetkit.suite import (
     CipherAlg,
     HashAlg,
@@ -56,14 +55,14 @@ def triple_suite():
 def open_pair(suite):
     alice_id = IdentityKeyPair.generate(suite)
     bob_id = IdentityKeyPair.generate(suite)
-    spk = SignedPreKey.generate(1, bob_id)
+    spk = SignedPreKey.generate(1, bob_id, suite)
     opk = OneTimePreKey.generate(1, suite)
     if isinstance(suite, CryptoSuiteTripleRatchet):
         pq = suite.generate_pq_prekey(1, bob_id)
         bundle = suite.create_bundle(bob_id, spk, pq, opk)
-        alice, initial = Session.initiate(alice_id, bundle)
+        alice, initial = suite.initiate(alice_id, bundle)
         first = alice.encrypt(b"setup")
-        bob, plain = Session.accept(
+        bob, plain = suite.accept(
             bob_id,
             spk,
             initial,
@@ -73,9 +72,9 @@ def open_pair(suite):
         )
     else:
         bundle = suite.create_bundle(bob_id, spk, opk)
-        alice, initial = Session.initiate(alice_id, bundle)
+        alice, initial = suite.initiate(alice_id, bundle)
         first = alice.encrypt(b"setup")
-        bob, plain = Session.accept(bob_id, spk, initial, first, opk)
+        bob, plain = suite.accept(bob_id, spk, initial, first, opk)
     assert plain == b"setup"
     reply = bob.encrypt(b"ack")
     assert alice.decrypt(reply) == b"ack"

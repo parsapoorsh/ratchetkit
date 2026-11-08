@@ -126,7 +126,7 @@ use `to_bytes()` / `from_bytes()`. Ratchet messages use
 
 Published identity material for X3DH or PQXDH initiation.
 `suite.create_bundle(...)` builds it; the initiator verifies signatures
-before `Session.initiate`.
+before `suite.initiate`.
 
 ```
 constructor                 u32     0x524B0010
@@ -166,7 +166,7 @@ are verified with `identity_signing`.
 ### InitialMessageX3DH (`0x524B0011`)
 
 First handshake message from initiator to responder (public half only).
-Returned by `Session.initiate` for a Double Ratchet suite.
+Returned by `suite.initiate` for a Double Ratchet suite.
 
 ```
 constructor                 u32     0x524B0011
@@ -193,7 +193,7 @@ and optional one-time prekey on KEM-only suites. DH suites send
 
 `ratchet_public` is the initiator's first Double Ratchet public (DH
 public, or KEM public+CT via [RatchetHeader](#ratchetheader-kem)).
-`Session.accept` requires it.
+`suite.accept` requires it.
 
 The initiator signature covers:
 
@@ -209,7 +209,7 @@ PQXDH also appends `pq_ciphertext` to that material (see next packet).
 ### InitialMessagePQXDH (`0x524B0015`)
 
 PQXDH first message: the full X3DH body, then PQ fields.
-Returned by `Session.initiate` for a Triple Ratchet suite.
+Returned by `suite.initiate` for a Triple Ratchet suite.
 `pq_ciphertext` is required and must be non-empty.
 
 ```

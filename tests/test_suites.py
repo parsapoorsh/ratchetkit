@@ -6,7 +6,7 @@ import pytest
 
 from ratchetkit.keys.identity import IdentityKeyPair
 from ratchetkit.keys.prekey import OneTimePreKey, SignedPreKey
-from ratchetkit.session import Session
+
 from ratchetkit.suite import (
     SigningAlg,
     DEFAULT_TAG_SIZE,
@@ -87,14 +87,14 @@ SUITES = [
 def _open_suite(suite: CryptoSuite, plain: bytes = b"suite-hi"):
     alice = IdentityKeyPair.generate(suite)
     bob = IdentityKeyPair.generate(suite)
-    spk = SignedPreKey.generate(1, bob)
+    spk = SignedPreKey.generate(1, bob, suite)
     opk = OneTimePreKey.generate(1, suite)
     if isinstance(suite, CryptoSuiteTripleRatchet):
         pq = suite.generate_pq_prekey(1, bob)
         bundle = suite.create_bundle(bob, spk, pq, opk)
-        alice_sess, initial = Session.initiate(alice, bundle)
+        alice_sess, initial = suite.initiate(alice, bundle)
         first = alice_sess.encrypt(plain)
-        bob_sess, got = Session.accept(
+        bob_sess, got = suite.accept(
             bob,
             spk,
             initial,
@@ -104,9 +104,9 @@ def _open_suite(suite: CryptoSuite, plain: bytes = b"suite-hi"):
         )
     else:
         bundle = suite.create_bundle(bob, spk, opk)
-        alice_sess, initial = Session.initiate(alice, bundle)
+        alice_sess, initial = suite.initiate(alice, bundle)
         first = alice_sess.encrypt(plain)
-        bob_sess, got = Session.accept(bob, spk, initial, first, opk)
+        bob_sess, got = suite.accept(bob, spk, initial, first, opk)
     assert got == plain
     return alice_sess, bob_sess, first
 

@@ -91,15 +91,15 @@ def open_pair(
     suite = suite or make_suite(kind)
     alice_id = IdentityKeyPair.generate(suite)
     bob_id = IdentityKeyPair.generate(suite)
-    spk = SignedPreKey.generate(spk_id, bob_id)
+    spk = SignedPreKey.generate(spk_id, bob_id, suite)
     opk = OneTimePreKey.generate(opk_id, suite)
     if kind == "triple":
         assert isinstance(suite, CryptoSuiteTripleRatchet)
         pq = suite.generate_pq_prekey(1, bob_id)
         bundle = suite.create_bundle(bob_id, spk, pq, opk)
-        alice, initial = Session.initiate(alice_id, bundle)
+        alice, initial = suite.initiate(alice_id, bundle)
         first = alice.encrypt(first_plain)
-        bob, plain = Session.accept(
+        bob, plain = suite.accept(
             bob_id,
             spk,
             initial,
@@ -109,9 +109,9 @@ def open_pair(
         )
     else:
         bundle = suite.create_bundle(bob_id, spk, opk)
-        alice, initial = Session.initiate(alice_id, bundle)
+        alice, initial = suite.initiate(alice_id, bundle)
         first = alice.encrypt(first_plain)
-        bob, plain = Session.accept(bob_id, spk, initial, first, opk)
+        bob, plain = suite.accept(bob_id, spk, initial, first, opk)
     assert plain == first_plain
     return alice, bob, suite, alice_id, bob_id, spk, opk, bundle, initial, first
 

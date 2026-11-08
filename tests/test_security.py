@@ -184,7 +184,7 @@ def test_kem_requires_one_time_prekey():
     )
     alice = IdentityKeyPair.generate(suite)
     bob = IdentityKeyPair.generate(suite)
-    spk = SignedPreKey.generate(1, bob)
+    spk = SignedPreKey.generate(1, bob, suite)
     x3dh = ExtendedTripleDiffieHellman(suite)
     bundle = x3dh.create_bundle(bob, spk, None)
     with pytest.raises(InvalidKey, match="one-time prekey"):
@@ -200,7 +200,7 @@ def test_identity_agreement_bound_in_initial_signature():
     )
     alice = IdentityKeyPair.generate(suite)
     bob = IdentityKeyPair.generate(suite)
-    spk = SignedPreKey.generate(1, bob)
+    spk = SignedPreKey.generate(1, bob, suite)
     opk = OneTimePreKey.generate(1, suite)
     x3dh = ExtendedTripleDiffieHellman(suite)
     bundle = x3dh.create_bundle(bob, spk, opk)
@@ -233,7 +233,7 @@ def test_initial_identity_algorithm_relabel_rejected():
     )
     alice = IdentityKeyPair.generate(suite)
     bob = IdentityKeyPair.generate(suite)
-    spk = SignedPreKey.generate(1, bob)
+    spk = SignedPreKey.generate(1, bob, suite)
     opk = OneTimePreKey.generate(1, suite)
     x3dh = ExtendedTripleDiffieHellman(suite)
     bundle = x3dh.create_bundle(bob, spk, opk)
@@ -281,7 +281,7 @@ def test_spk_signature_binds_algorithm_label():
         signing=SigningAlg.ED25519,
     )
     bob = IdentityKeyPair.generate(suite)
-    spk = SignedPreKey.generate(1, bob)
+    spk = SignedPreKey.generate(1, bob, suite)
     opk = OneTimePreKey.generate(1, suite)
     bundle = suite.create_bundle(bob, spk, opk)
 

@@ -47,8 +47,12 @@ class SignedPreKey:
         return encode_u8(int(public.algorithm)) + public.data
 
     @classmethod
-    def generate(cls, key_id: int, identity: IdentityKeyPair) -> SignedPreKey:
-        suite = identity.require_suite()
+    def generate(
+        cls,
+        key_id: int,
+        identity: IdentityKeyPair,
+        suite: CryptoSuite,
+    ) -> SignedPreKey:
         pair = suite.kem.generate_keypair()
         signature = suite.signer.sign(
             identity.signing,
@@ -64,16 +68,7 @@ class OneTimePreKey:
     key_pair: KeyPair
 
     @classmethod
-    def generate(
-        cls,
-        key_id: int,
-        suite: CryptoSuite | None = None,
-        identity: IdentityKeyPair | None = None,
-    ) -> OneTimePreKey:
-        if suite is None:
-            if identity is None:
-                raise ValueError("need suite or identity")
-            suite = identity.require_suite()
+    def generate(cls, key_id: int, suite: CryptoSuite) -> OneTimePreKey:
         return cls(key_id=key_id, key_pair=suite.kem.generate_keypair())
 
 
@@ -100,18 +95,9 @@ class SignedPqPreKey:
         cls,
         key_id: int,
         identity: IdentityKeyPair,
-        pq_kem: KemBackend | None = None,
+        suite: CryptoSuite,
+        pq_kem: KemBackend,
     ) -> SignedPqPreKey:
-        suite = identity.require_suite()
-        if pq_kem is None:
-            from ratchetkit.suite.triple import CryptoSuiteTripleRatchet
-
-            if isinstance(suite, CryptoSuiteTripleRatchet):
-                pq_kem = suite.pq_kem
-            else:
-                raise ValueError(
-                    "pq_kem is required when the suite has no pq_key_exchange"
-                )
         pair = pq_kem.generate_keypair()
         signature = suite.signer.sign(
             identity.signing,

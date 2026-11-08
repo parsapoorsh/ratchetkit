@@ -34,9 +34,9 @@ python -m example.client
 
 1. **Bob publishes** a `PreKeyBundle` (identity + signed prekey + one-time prekey).
 2. **Alice fetches** it, verifies the SPK signature, runs **X3DH once**
-   (`Session.initiate` -> `InitialMessage`).
+   (`suite.initiate` -> `InitialMessage`).
 3. **First ciphertext** carries the ratchet open; Bob
-   `Session.accept`.
+   `suite.accept`.
 4. **Two Alice messages before Bob replies** - same `ratchet` public,
    `counter=0` then `counter=1` (symmetric ratchet only).
 5. **Each turn of the conversation** after that - new ratchet public

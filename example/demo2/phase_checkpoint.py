@@ -17,7 +17,6 @@ from example.demo2.common import (
 from example.demo2.suite_config import ACTIVE_SUITE
 from ratchetkit.keys.identity import IdentityKeyPair
 from ratchetkit.keys.prekey import OneTimePreKey, SignedPreKey
-from ratchetkit.session import Session
 from ratchetkit.suite.triple import CryptoSuiteTripleRatchet
 
 
@@ -28,7 +27,7 @@ def main() -> int:
 
     alice_id = IdentityKeyPair.generate(suite)
     bob_id = IdentityKeyPair.generate(suite)
-    spk = SignedPreKey.generate(1, bob_id)
+    spk = SignedPreKey.generate(1, bob_id, suite)
     opk = OneTimePreKey.generate(42, suite)
     if isinstance(suite, CryptoSuiteTripleRatchet):
         pq = suite.generate_pq_prekey(1, bob_id)
@@ -47,9 +46,9 @@ def main() -> int:
     )
 
     # --- handshake ---
-    alice, initial = Session.initiate(alice_id, bundle)
+    alice, initial = suite.initiate(alice_id, bundle)
     first = alice.encrypt(b"hello bob")
-    bob, plain = Session.accept(
+    bob, plain = suite.accept(
         bob_id,
         spk,
         initial,
