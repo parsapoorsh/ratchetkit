@@ -2,7 +2,6 @@
 from __future__ import annotations
 
 
-import struct
 from dataclasses import dataclass
 
 from ratchetkit.errors import SerializationError
@@ -12,9 +11,11 @@ from ratchetkit.packing import (
     Constructor,
     ConstructorId,
     encode_bytes16,
-    encode_u32,
+    encode_u8,
+    encode_u16,
     read_bytes16,
-    read_u32,
+    read_u8,
+    read_u16,
 )
 
 
@@ -65,14 +66,14 @@ class InitialMessageX3DH(Constructor):
         """Serialize fields after the constructor id."""
         parts = [
             encode_bytes16(self.identity_signing.data),
-            encode_u32(int(self.identity_signing.algorithm)),
+            encode_u8(int(self.identity_signing.algorithm)),
         ]
         if self.identity_agreement is not None:
             parts.extend(
                 [
                     b"\x01",
                     encode_bytes16(self.identity_agreement.data),
-                    encode_u32(int(self.identity_agreement.algorithm)),
+                    encode_u8(int(self.identity_agreement.algorithm)),
                 ]
             )
         else:
@@ -80,17 +81,17 @@ class InitialMessageX3DH(Constructor):
         parts.extend(
             [
                 encode_bytes16(self.ephemeral_public.data),
-                encode_u32(int(self.ephemeral_public.algorithm)),
+                encode_u8(int(self.ephemeral_public.algorithm)),
                 bytes([len(self.kem_ciphertexts)]),
             ]
         )
         for ct in self.kem_ciphertexts:
             parts.append(encode_bytes16(ct))
-        parts.append(struct.pack(">I", self.signed_prekey_id))
+        parts.append(encode_u16(self.signed_prekey_id))
         if self.one_time_prekey_id is None:
             parts.append(b"\x00")
         else:
-            parts.extend([b"\x01", struct.pack(">I", self.one_time_prekey_id)])
+            parts.extend([b"\x01", encode_u16(self.one_time_prekey_id)])
         parts.append(encode_bytes16(self.signature))
         if self.ratchet_public is None:
             parts.append(b"\x00")
@@ -105,37 +106,31 @@ class InitialMessageX3DH(Constructor):
     def decode_body(cls, view: memoryview, offset: int) -> tuple[dict, int]:
         """Parse X3DH fields starting at ``offset``; return kwargs and new offset."""
         identity_data, offset = read_bytes16(view, offset)
-        identity_alg_id, offset = read_u32(view, offset)
+        identity_alg_id, offset = read_u8(view, offset)
         has_agreement = view[offset]
         offset += 1
         identity_agreement = None
         if has_agreement:
             agreement_data, offset = read_bytes16(view, offset)
-            agreement_alg_id, offset = read_u32(view, offset)
+            agreement_alg_id, offset = read_u8(view, offset)
             identity_agreement = PublicKey(
                 agreement_data,
                 KeyExchangeAlg.from_id(agreement_alg_id),
             )
         ephemeral_data, offset = read_bytes16(view, offset)
-        ephemeral_alg_id, offset = read_u32(view, offset)
+        ephemeral_alg_id, offset = read_u8(view, offset)
         ct_count = view[offset]
         offset += 1
         ciphertexts = []
         for _ in range(ct_count):
             ct, offset = read_bytes16(view, offset)
             ciphertexts.append(ct)
-        if offset + 4 > len(view):
-            raise SerializationError("truncated signed prekey id")
-        signed_prekey_id = struct.unpack_from(">I", view, offset)[0]
-        offset += 4
+        signed_prekey_id, offset = read_u16(view, offset)
         has_opk = view[offset]
         offset += 1
         one_time_prekey_id = None
         if has_opk:
-            if offset + 4 > len(view):
-                raise SerializationError("truncated one-time prekey id")
-            one_time_prekey_id = struct.unpack_from(">I", view, offset)[0]
-            offset += 4
+            one_time_prekey_id, offset = read_u16(view, offset)
         signature, offset = read_bytes16(view, offset)
         if offset >= len(view):
             raise SerializationError("truncated initial message ratchet flag")
@@ -190,7 +185,7 @@ class InitialMessagePQXDH(InitialMessageX3DH):
     def encode_body(self) -> bytes:
         return (
             super().encode_body()
-            + struct.pack(">I", self.pq_prekey_id)
+            + encode_u16(self.pq_prekey_id)
             + encode_bytes16(self.pq_ciphertext)
         )
 
@@ -201,10 +196,7 @@ class InitialMessagePQXDH(InitialMessageX3DH):
             raise SerializationError("empty initial message")
         offset = cls.constructor_expect(view)
         fields, offset = cls.decode_body(view, offset)
-        if offset + 4 > len(view):
-            raise SerializationError("truncated PQ prekey id")
-        pq_prekey_id = struct.unpack_from(">I", view, offset)[0]
-        offset += 4
+        pq_prekey_id, offset = read_u16(view, offset)
         pq_ciphertext, offset = read_bytes16(view, offset)
         if offset != len(view):
             raise SerializationError("trailing bytes in PQXDH initial message")

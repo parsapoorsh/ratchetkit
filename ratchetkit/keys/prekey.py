@@ -2,7 +2,6 @@
 from __future__ import annotations
 
 
-import struct
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
@@ -17,9 +16,11 @@ from ratchetkit.packing import (
     Constructor,
     ConstructorId,
     encode_bytes16,
-    encode_u32,
+    encode_u8,
+    encode_u16,
     read_bytes16,
-    read_u32,
+    read_u8,
+    read_u16,
 )
 from ratchetkit.suite.algs import KeyExchangeAlg, SigningAlg
 from ratchetkit.suite.registry import hash_backend
@@ -43,7 +44,7 @@ class SignedPreKey:
         Binds the algorithm id to the key bytes so a peer cannot relabel
         the same point as a different primitive.
         """
-        return encode_u32(int(public.algorithm)) + public.data
+        return encode_u8(int(public.algorithm)) + public.data
 
     @classmethod
     def generate(cls, key_id: int, identity: IdentityKeyPair) -> SignedPreKey:
@@ -92,7 +93,7 @@ class SignedPqPreKey:
     @staticmethod
     def signed_material(public: PublicKey) -> bytes:
         """Transcript bytes covered by the PQ prekey signature."""
-        return encode_u32(int(public.algorithm)) + public.data
+        return encode_u8(int(public.algorithm)) + public.data
 
     @classmethod
     def generate(
@@ -237,23 +238,23 @@ class PreKeyBundle(Constructor):
         parts = [
             self.constructor_pack(),
             encode_bytes16(self.identity_signing.data),
-            encode_u32(int(self.identity_signing.algorithm)),
+            encode_u8(int(self.identity_signing.algorithm)),
         ]
         if self.identity_agreement is not None:
             parts.extend(
                 [
                     b"\x01",
                     encode_bytes16(self.identity_agreement.data),
-                    encode_u32(int(self.identity_agreement.algorithm)),
+                    encode_u8(int(self.identity_agreement.algorithm)),
                 ]
             )
         else:
             parts.append(b"\x00")
         parts.extend(
             [
-                struct.pack(">I", self.signed_prekey_id),
+                encode_u16(self.signed_prekey_id),
                 encode_bytes16(self.signed_prekey.data),
-                encode_u32(int(self.signed_prekey.algorithm)),
+                encode_u8(int(self.signed_prekey.algorithm)),
                 encode_bytes16(self.signed_prekey_signature),
             ]
         )
@@ -263,9 +264,9 @@ class PreKeyBundle(Constructor):
             parts.extend(
                 [
                     b"\x01",
-                    struct.pack(">I", self.one_time_prekey_id or 0),
+                    encode_u16(self.one_time_prekey_id or 0),
                     encode_bytes16(self.one_time_prekey.data),
-                    encode_u32(int(self.one_time_prekey.algorithm)),
+                    encode_u8(int(self.one_time_prekey.algorithm)),
                 ]
             )
         if self.pq_prekey is None:
@@ -274,9 +275,9 @@ class PreKeyBundle(Constructor):
             parts.extend(
                 [
                     b"\x01",
-                    struct.pack(">I", self.pq_prekey_id or 0),
+                    encode_u16(self.pq_prekey_id or 0),
                     encode_bytes16(self.pq_prekey.data),
-                    encode_u32(int(self.pq_prekey.algorithm)),
+                    encode_u8(int(self.pq_prekey.algorithm)),
                     encode_bytes16(self.pq_prekey_signature or b""),
                 ]
             )
@@ -290,35 +291,29 @@ class PreKeyBundle(Constructor):
         offset = cls.constructor_expect(view)
 
         identity_data, offset = read_bytes16(view, offset)
-        identity_alg_id, offset = read_u32(view, offset)
+        identity_alg_id, offset = read_u8(view, offset)
         has_agreement = view[offset]
         offset += 1
         identity_agreement = None
         if has_agreement:
             agreement_data, offset = read_bytes16(view, offset)
-            agreement_alg_id, offset = read_u32(view, offset)
+            agreement_alg_id, offset = read_u8(view, offset)
             identity_agreement = PublicKey(
                 agreement_data,
                 KeyExchangeAlg.from_id(agreement_alg_id),
             )
-        if offset + 4 > len(view):
-            raise SerializationError("truncated signed prekey id")
-        signed_prekey_id = struct.unpack_from(">I", view, offset)[0]
-        offset += 4
+        signed_prekey_id, offset = read_u16(view, offset)
         spk_data, offset = read_bytes16(view, offset)
-        spk_alg_id, offset = read_u32(view, offset)
+        spk_alg_id, offset = read_u8(view, offset)
         signature, offset = read_bytes16(view, offset)
         has_opk = view[offset]
         offset += 1
         one_time = None
         one_time_id = None
         if has_opk:
-            if offset + 4 > len(view):
-                raise SerializationError("truncated one-time prekey id")
-            one_time_id = struct.unpack_from(">I", view, offset)[0]
-            offset += 4
+            one_time_id, offset = read_u16(view, offset)
             opk_data, offset = read_bytes16(view, offset)
-            opk_alg_id, offset = read_u32(view, offset)
+            opk_alg_id, offset = read_u8(view, offset)
             one_time = PublicKey(opk_data, KeyExchangeAlg.from_id(opk_alg_id))
         pq_prekey = None
         pq_prekey_id = None
@@ -328,12 +323,9 @@ class PreKeyBundle(Constructor):
             has_pq = view[offset]
             offset += 1
             if has_pq:
-                if offset + 4 > len(view):
-                    raise SerializationError("truncated PQ prekey id")
-                pq_prekey_id = struct.unpack_from(">I", view, offset)[0]
-                offset += 4
+                pq_prekey_id, offset = read_u16(view, offset)
                 pq_data, offset = read_bytes16(view, offset)
-                pq_alg_id, offset = read_u32(view, offset)
+                pq_alg_id, offset = read_u8(view, offset)
                 pq_prekey_signature, offset = read_bytes16(view, offset)
                 pq_prekey = PublicKey(pq_data, KeyExchangeAlg.from_id(pq_alg_id))
         if offset != len(view):

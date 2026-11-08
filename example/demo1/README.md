@@ -47,12 +47,11 @@ Logs print `counter`, `prev`, a short ratchet fingerprint, and session
 
 ## Wire format
 
-The socket only length-frames bytes (`u32 len | data`). Each object blob
-starts with that type's `CONSTRUCTOR_ID`. The receiver checks the id, then
-parses with that type's `from_bytes`.
+The socket only length-frames bytes (`u32 len | data`). Handshake and
+bundle blobs start with a constructor id. Ratchet messages do not; parse
+them with the suite:
 
 ```python
 link.send(message.to_bytes())
-raw = link.expect(DoubleRatchetMessage.CONSTRUCTOR_ID)
-reply = DoubleRatchetMessage.from_bytes(raw)
+reply = suite.Message.from_bytes(link.recv(), suite)
 ```

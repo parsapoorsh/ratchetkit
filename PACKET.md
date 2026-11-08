@@ -1,17 +1,19 @@
 # Packet formats
 
-Every ratchetkit object on the wire or in a session blob starts with a
+Handshake packets, prekey bundles, and session-state blobs start with a
 4-byte **constructor id** (`ConstructorId` in `ratchetkit/packing.py`).
-The rest of the blob is type-specific. Integers are **big-endian**.
-Trailing bytes after a complete object are rejected.
+Ratchet messages and SCKA chunk frames do not: the live suite selects
+the parser. Integers are **big-endian**. Trailing bytes after a complete
+constructed object are rejected.
 
 This is not a Signal protobuf / session-record format.
 
-Two families of blobs share the same constructor scheme:
+Two families of blobs:
 
 | Family | Used for | Byte-string prefix |
 |--------|----------|--------------------|
-| Protocol packets | handshake, messages, published bundles, SCKA chunks | `bytes16` (`u16` length) |
+| Protocol packets | handshake, published bundles | `bytes16` (`u16` length) |
+| Ratchet messages | Double / Triple ciphertext | fixed DH public, varint counters, tail MAC |
 | Persistence blobs | `Session.to_bytes()` and nested ratchet/suite state | `bytes32` (`u32` length) |
 
 ---
@@ -23,6 +25,7 @@ Two families of blobs share the same constructor scheme:
 | `u8` | 1 byte |
 | `u16` | 2 bytes, big-endian |
 | `u32` | 4 bytes, big-endian |
+| `varint` | unsigned LEB128 (7 data bits per byte, high bit continues) |
 | `bool` | `u8`: `0x00` false, `0x01` true; any other value is invalid |
 | `bytes16` | `u16 length` then `length` bytes. Max `0xFFFF`. |
 | `bytes32` | `u32 length` then `length` bytes. Max `0xFFFFFFFF`. |
@@ -100,9 +103,6 @@ Persistence blobs live in `0x524B002x`.
 | `0x524B0010` | `PREKEY_BUNDLE` | `PreKeyBundle` | protocol |
 | `0x524B0011` | `INITIAL_MESSAGE_X3DH` | `InitialMessageX3DH` | protocol |
 | `0x524B0015` | `INITIAL_MESSAGE_PQXDH` | `InitialMessagePQXDH` | protocol |
-| `0x524B0012` | `DOUBLE_RATCHET_MESSAGE` | `DoubleRatchetMessage` | protocol |
-| `0x524B0013` | `TRIPLE_RATCHET_MESSAGE` | `TripleRatchetMessage` | protocol |
-| `0x524B0014` | `CHUNK_FRAME` | `ChunkFrame` | protocol (nested in SPQR) |
 | `0x524B0020` | `SESSION` | `Session` | persistence |
 | `0x524B0021` | `SUITE_DOUBLE` | `CryptoSuiteDoubleRatchet` | persistence |
 | `0x524B0022` | `SUITE_TRIPLE` | `CryptoSuiteTripleRatchet` | persistence |
@@ -111,15 +111,17 @@ Persistence blobs live in `0x524B002x`.
 | `0x524B0025` | `SPQR` | `SparsePostQuantumRatchet` | persistence |
 | `0x524B0026` | `SCKA` | `ChunkedKemScka` | persistence |
 
-Parse by reading the leading `u32` and dispatching. An unknown id is a
-serialization error.
+Parse constructed objects by reading the leading `u32` and dispatching.
+An unknown id is a serialization error. Ratchet messages are parsed with
+`suite.Message.from_bytes(blob, suite)`.
 
 ---
 
 ## Protocol packets
 
-These are the blobs a peer actually sends. Call `to_bytes()` /
-`from_bytes()` on the matching class.
+These are the blobs a peer actually sends. Handshake and bundle types
+use `to_bytes()` / `from_bytes()`. Ratchet messages use
+`suite.Message.from_bytes(blob, suite)`.
 
 ### PreKeyBundle (`0x524B0010`)
 
@@ -130,22 +132,22 @@ before `Session.initiate`.
 ```
 constructor                 u32     0x524B0010
 identity_signing            bytes16
-identity_signing_alg        u32     SigningAlg
+identity_signing_alg        u8      SigningAlg
 has_agreement               bool
   identity_agreement        bytes16          if has_agreement
-  identity_agreement_alg    u32     KeyExchangeAlg
-signed_prekey_id            u32
+  identity_agreement_alg    u8      KeyExchangeAlg
+signed_prekey_id            u16
 signed_prekey               bytes16
-signed_prekey_alg           u32     KeyExchangeAlg
+signed_prekey_alg           u8      KeyExchangeAlg
 signed_prekey_signature     bytes16
 has_opk                     bool
-  one_time_prekey_id        u32              if has_opk
+  one_time_prekey_id        u16              if has_opk
   one_time_prekey           bytes16
-  one_time_prekey_alg       u32     KeyExchangeAlg
+  one_time_prekey_alg       u8      KeyExchangeAlg
 has_pq                      bool             omitted on older bundles
-  pq_prekey_id              u32              if has_pq
+  pq_prekey_id              u16              if has_pq
   pq_prekey                 bytes16
-  pq_prekey_alg             u32     KeyExchangeAlg
+  pq_prekey_alg             u8      KeyExchangeAlg
   pq_prekey_signature       bytes16
 ```
 
@@ -156,8 +158,8 @@ has_pq                      bool             omitted on older bundles
 section, PQ fields are treated as missing (classical X3DH bundle). A
 present `0x00` means "no PQ prekey"; `0x01` requires all four PQ fields.
 
-The signed-prekey signature covers `u32(signed_prekey_alg) || signed_prekey`.
-The PQ prekey signature covers `u32(pq_prekey_alg) || pq_prekey`. Both
+The signed-prekey signature covers `u8(signed_prekey_alg) || signed_prekey`.
+The PQ prekey signature covers `u8(pq_prekey_alg) || pq_prekey`. Both
 are verified with `identity_signing`.
 
 ---
@@ -170,17 +172,17 @@ Returned by `Session.initiate` for a Double Ratchet suite.
 ```
 constructor                 u32     0x524B0011
 identity_signing            bytes16
-identity_signing_alg        u32     SigningAlg
+identity_signing_alg        u8      SigningAlg
 has_agreement               bool
   identity_agreement        bytes16          if has_agreement
-  identity_agreement_alg    u32     KeyExchangeAlg
+  identity_agreement_alg    u8      KeyExchangeAlg
 ephemeral_public            bytes16
-ephemeral_alg               u32     KeyExchangeAlg
+ephemeral_alg               u8      KeyExchangeAlg
 kem_ct_count                u8
   kem_ciphertext            bytes16          kem_ct_count times
-signed_prekey_id            u32
+signed_prekey_id            u16
 has_opk                     bool
-  one_time_prekey_id        u32              if has_opk
+  one_time_prekey_id        u16              if has_opk
 signature                   bytes16
 has_ratchet                 bool
   ratchet_public            bytes16          if has_ratchet
@@ -214,7 +216,7 @@ Returned by `Session.initiate` for a Triple Ratchet suite.
 ```
 constructor                 u32     0x524B0015
 ...X3DH body (same fields as InitialMessageX3DH after its constructor)...
-pq_prekey_id                u32
+pq_prekey_id                u16
 pq_ciphertext               bytes16
 ```
 
@@ -223,29 +225,31 @@ immediately after those 4 bytes (no nested X3DH constructor).
 
 ---
 
-### DoubleRatchetMessage (`0x524B0012`)
+### DoubleRatchetMessage
 
 Application ciphertext for a classical Double Ratchet session.
+No constructor id; the session suite selects the parser
+(`suite.Message.from_bytes(blob, suite)`).
 
 ```
-constructor                 u32     0x524B0012
-ratchet_public              bytes16
-previous_counter            u32
-counter                     u32
-ciphertext                  bytes16
-mac                         bytes16
+ratchet_public              bytes   DH: kem.public_size; KEM: RatchetHeader
+previous_counter            varint
+counter                     varint
+ciphertext                  bytes   until last tag_size bytes
+mac                         bytes   suite.tag_size, last
 ```
 
 `header_bytes()` (authenticated under the MAC) is:
 
 ```
-ratchet_public              bytes16
-previous_counter            u32
-counter                     u32
+ratchet_public
+previous_counter            varint
+counter                     varint
 ```
 
 `ratchet_public` is a [RatchetHeader](#ratchetheader-kem): raw DH public
-for DH suites, or length-prefixed KEM public + encapsulation CT.
+(`kem.public_size` bytes, no length prefix) for DH suites, or
+length-prefixed KEM public + encapsulation CT.
 
 `previous_counter` is the sending chain index from the previous ratchet
 step (skip bookkeeping). `counter` is this message's chain index.
@@ -259,60 +263,55 @@ associated_data || header_bytes || plaintext
 
 truncated to `suite.tag_size` (default 16, min 10). That tag is the CTR /
 ChaCha nonce (padded with zeros on the right if shorter than the nonce,
-or truncated on the left if longer). The tag is sent after the ciphertext.
-Session AD is `initiator_signing_public || responder_signing_public`; extra
-per-message AD is appended.
+or truncated on the left if longer). The tag is sent after the ciphertext
+with no length prefix. Session AD is
+`initiator_signing_public || responder_signing_public`; extra per-message
+AD is appended.
 
 ---
 
-### TripleRatchetMessage (`0x524B0013`)
+### TripleRatchetMessage
 
 Hybrid message: EC Double Ratchet header + SPQR header + one ciphertext
-encrypted under `KDF_HYBRID(ec_mk, pq_mk)`.
+encrypted under `KDF_HYBRID(ec_mk, pq_mk)`. No constructor id.
 
 ```
-constructor                 u32     0x524B0013
-ec_header_len               u16
-ec_header                   bytes   (Double Ratchet header_bytes)
-spqr_header_len             u16
-spqr_header                 bytes   (SpqrHeader)
-ciphertext                  bytes16
-mac                         bytes16
+ec_header                   bytes   Double Ratchet header_bytes
+spqr_header                 bytes   SpqrHeader (self-describing)
+ciphertext                  bytes   until last tag_size bytes
+mac                         bytes   suite.tag_size, last
 ```
 
 `ec_header` is **not** a full `DoubleRatchetMessage`. It is only:
 
 ```
-ratchet_public              bytes16
-previous_counter            u32
-counter                     u32
+ratchet_public              bytes   same rule as Double Ratchet
+previous_counter            varint
+counter                     varint
 ```
 
-`spqr_header` is an [SpqrHeader](#spqrheader) (no constructor of its own).
+`spqr_header` is an [SpqrHeader](#spqrheader).
 
-`header_bytes()` for the MAC is the concatenation of the two
-length-prefixed headers (`ec_header_len || ec_header || spqr_header_len || spqr_header`).
+`header_bytes()` for the MAC is `ec_header || spqr_header`.
 MAC coverage is the same rule as Double Ratchet:
 `associated_data || header_bytes || plaintext` (tag is the CTR nonce).
 
 ---
 
-### ChunkFrame (`0x524B0014`)
+### ChunkFrame
 
 One SCKA chunk (or ack-only frame) carried inside `SpqrHeader.scka_msg`.
 ML-KEM public keys / ciphertexts are split across `n_chunks` application
-messages.
+messages. No constructor id; `n_chunks` comes from the suite.
 
 ```
-constructor                 u32     0x524B0014
 flags                       u8
-key_epoch                   u32
-chunk_index                 u16
-n_chunks                    u16
-ack_count                   u16
-payload_len                 u16
-data_len                    u16
-data                        bytes   data_len bytes; must consume the rest of the blob
+key_epoch                   varint
+chunk_index                 varint
+ack_count                   varint
+payload_len                 varint
+data_len                    varint
+data                        bytes   data_len bytes
 ```
 
 | Flag | Value | Meaning |
@@ -353,12 +352,11 @@ Chain identity for skipped-key lookup is the encapsulation ciphertext.
 Sparse PQ ratchet header inside `TripleRatchetMessage`.
 
 ```
-scka_msg_len                u16
-scka_msg                    bytes   a ChunkFrame
-t_s                         u32     sending key epoch
-previous2_counter           u32     period in the epoch before last
-previous_counter            u32     period in the previous sending epoch
-counter                     u32     period in t_s
+t_s                         varint  sending key epoch
+previous2_counter           varint  period in the epoch before last
+previous_counter            varint  period in the previous sending epoch
+counter                     varint  period in t_s
+scka_msg                    bytes   a ChunkFrame (self-describing)
 ```
 
 ### SCKA payload (reconstructed)
@@ -646,9 +644,11 @@ Field lengths follow the suite. Common values:
 A Double Ratchet message with X25519 + AES-256 + 16-byte tag is:
 
 ```
-4 (ctor) + 2+32 (ratchet_public) + 8 (counters)
-  + 2+len(ciphertext) + 2+16 (mac)
+32 (ratchet_public) + varint previous + varint counter
+  + len(ciphertext) + 16 (mac)
 ```
+
+For counters below 128 that is 50 bytes of overhead plus the ciphertext.
 
 ---
 
