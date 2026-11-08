@@ -3,23 +3,16 @@ from __future__ import annotations
 
 
 import hmac
-from typing import TYPE_CHECKING
 
 from ratchetkit.suite import HashAlg
 from ratchetkit.suite.registry import hash_backend
-
-if TYPE_CHECKING:
-    from ratchetkit.algorithms.hash.base import HashAlgorithm
 
 
 class Kdf:
     """Domain-separated HKDF / HMAC using a suite hash class."""
 
-    def __init__(self, digest: HashAlg | type[HashAlgorithm]):
-        if isinstance(digest, HashAlg):
-            self.hash_cls = hash_backend(digest)
-        else:
-            self.hash_cls = digest
+    def __init__(self, digest: HashAlg):
+        self.hash_cls = hash_backend(digest)
 
     def hmac_digest(self, key: bytes, data: bytes) -> bytes:
         """HMAC over ``data`` using the suite digest."""
