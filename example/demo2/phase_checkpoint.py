@@ -16,7 +16,7 @@ from example.demo2.common import (
 )
 from example.demo2.suite_config import ACTIVE_SUITE
 from ratchetkit.keys.identity import IdentityKeyPair
-from ratchetkit.keys.prekey import OneTimePreKey, SignedPreKey
+from ratchetkit.keys.prekey import OneTimePreKey, SignedPqPreKey, SignedPreKey
 from ratchetkit.suite.triple import CryptoSuiteTripleRatchet
 
 
@@ -30,7 +30,7 @@ def main() -> int:
     spk = SignedPreKey.generate(1, bob_id, suite)
     opk = OneTimePreKey.generate(42, suite)
     if isinstance(suite, CryptoSuiteTripleRatchet):
-        pq = suite.generate_pq_prekey(1, bob_id)
+        pq = SignedPqPreKey.generate(1, bob_id, suite, suite.pq_kem)
         bundle = suite.create_bundle(bob_id, spk, pq, opk)
     else:
         pq = None

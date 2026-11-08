@@ -4,7 +4,7 @@ import pytest
 
 from ratchetkit.errors import InvalidMessage
 from ratchetkit.keys.identity import IdentityKeyPair
-from ratchetkit.keys.prekey import OneTimePreKey, SignedPreKey
+from ratchetkit.keys.prekey import OneTimePreKey, SignedPqPreKey, SignedPreKey
 from ratchetkit.session import Session
 from tests.helpers import (
     make_suite,
@@ -32,7 +32,7 @@ def test_ratchet_message_bytes_roundtrip(pair):
     spk = SignedPreKey.generate(1, bob_id, suite)
     opk = OneTimePreKey.generate(1, suite)
     if kind == "triple":
-        pq = suite.generate_pq_prekey(1, bob_id)
+        pq = SignedPqPreKey.generate(1, bob_id, suite, suite.pq_kem)
         bundle = suite.create_bundle(bob_id, spk, pq, opk)
         alice, initial = suite.initiate(alice_id, bundle)
         first = alice.encrypt(b"wire")
@@ -95,7 +95,7 @@ def test_session_accept_extra_associated_data(pair):
     opk = OneTimePreKey.generate(1, suite)
     extra = b"first-extra"
     if kind == "triple":
-        pq = suite.generate_pq_prekey(1, bob_id)
+        pq = SignedPqPreKey.generate(1, bob_id, suite, suite.pq_kem)
         bundle = suite.create_bundle(bob_id, spk, pq, opk)
         alice, initial = suite.initiate(alice_id, bundle)
         first = alice.encrypt(b"hello-ad", associated_data=extra)

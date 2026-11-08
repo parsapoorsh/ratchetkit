@@ -4,7 +4,7 @@ import pytest
 
 from ratchetkit.errors import InvalidMessage
 from ratchetkit.keys.identity import IdentityKeyPair
-from ratchetkit.keys.prekey import OneTimePreKey, SignedPreKey
+from ratchetkit.keys.prekey import OneTimePreKey, SignedPqPreKey, SignedPreKey
 from ratchetkit.ratchet import TripleRatchet, TripleRatchetMessage
 
 from ratchetkit.suite import (
@@ -33,7 +33,7 @@ def setup_triple(n_chunks=2):
     bob = IdentityKeyPair.generate(suite)
     spk = SignedPreKey.generate(1, bob, suite)
     opk = OneTimePreKey.generate(1, suite)
-    pq = suite.generate_pq_prekey(1, bob)
+    pq = SignedPqPreKey.generate(1, bob, suite, suite.pq_kem)
     bundle = suite.create_bundle(bob, spk, pq, opk)
     alice_sess, initial = suite.initiate(alice, bundle)
     assert isinstance(alice_sess.ratchet, TripleRatchet)
@@ -102,7 +102,7 @@ def test_triple_with_mlkem1024():
     bob = IdentityKeyPair.generate(suite)
     spk = SignedPreKey.generate(1, bob, suite)
     opk = OneTimePreKey.generate(1, suite)
-    pq = suite.generate_pq_prekey(1, bob)
+    pq = SignedPqPreKey.generate(1, bob, suite, suite.pq_kem)
     bundle = suite.create_bundle(bob, spk, pq, opk)
     a_sess, initial = suite.initiate(alice, bundle)
     first = a_sess.encrypt(b"pq")

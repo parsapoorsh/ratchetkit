@@ -164,14 +164,6 @@ class CryptoSuiteTripleRatchet(CryptoSuiteDoubleRatchet):
         )
         return session, initial
 
-    def generate_pq_prekey(
-        self,
-        key_id: int,
-        identity: IdentityKeyPair,
-    ) -> SignedPqPreKey:
-        """Generate a signed PQ prekey with this suite's ``pq_kem``."""
-        return SignedPqPreKey.generate(key_id, identity, self, self.pq_kem)
-
     def accept(
         self,
         our_identity: IdentityKeyPair,

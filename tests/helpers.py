@@ -8,7 +8,7 @@ from __future__ import annotations
 import pytest
 
 from ratchetkit.keys.identity import IdentityKeyPair
-from ratchetkit.keys.prekey import OneTimePreKey, SignedPreKey
+from ratchetkit.keys.prekey import OneTimePreKey, SignedPqPreKey, SignedPreKey
 from ratchetkit.ratchet.limits import RatchetLimits
 from ratchetkit.ratchet.message import (
     DoubleRatchetMessage,
@@ -95,7 +95,7 @@ def open_pair(
     opk = OneTimePreKey.generate(opk_id, suite)
     if kind == "triple":
         assert isinstance(suite, CryptoSuiteTripleRatchet)
-        pq = suite.generate_pq_prekey(1, bob_id)
+        pq = SignedPqPreKey.generate(1, bob_id, suite, suite.pq_kem)
         bundle = suite.create_bundle(bob_id, spk, pq, opk)
         alice, initial = suite.initiate(alice_id, bundle)
         first = alice.encrypt(first_plain)

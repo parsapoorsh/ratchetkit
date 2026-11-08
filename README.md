@@ -73,6 +73,7 @@ Sparse PQ Ratchet driven by chunked ML-KEM SCKA. Message keys are combined with
 `KDF_HYBRID` before HMAC-SIV (tag as CTR IV). All PQ fields are required
 
 ```python
+from ratchetkit.keys.prekey import OneTimePreKey, SignedPqPreKey, SignedPreKey
 from ratchetkit.suite import CipherAlg, HashAlg, KeyExchangeAlg, SigningAlg
 from ratchetkit.suite.triple import CryptoSuiteTripleRatchet
 
@@ -89,7 +90,7 @@ alice = IdentityKeyPair.generate(suite)
 bob = IdentityKeyPair.generate(suite)
 spk = SignedPreKey.generate(1, bob, suite)
 opk = OneTimePreKey.generate(1, suite)
-pq = suite.generate_pq_prekey(1, bob)
+pq = SignedPqPreKey.generate(1, bob, suite, suite.pq_kem)
 bundle = suite.create_bundle(bob, spk, pq, opk)
 
 alice_session, initial = suite.initiate(alice, bundle)

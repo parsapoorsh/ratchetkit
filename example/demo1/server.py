@@ -16,7 +16,7 @@ from ratchetkit.handshake.message import (
     InitialMessageX3DH,
 )
 from ratchetkit.keys.identity import IdentityKeyPair
-from ratchetkit.keys.prekey import OneTimePreKey, SignedPreKey
+from ratchetkit.keys.prekey import OneTimePreKey, SignedPqPreKey, SignedPreKey
 from ratchetkit.ratchet.message import (
     DoubleRatchetMessage,
     TripleRatchetMessage,
@@ -32,7 +32,7 @@ def main() -> None:
     if isinstance(suite, CryptoSuiteTripleRatchet):
         Message = TripleRatchetMessage
         InitialMessage = InitialMessagePQXDH
-        pq = suite.generate_pq_prekey(1, bob)
+        pq = SignedPqPreKey.generate(1, bob, suite, suite.pq_kem)
         bundle = suite.create_bundle(bob, spk, pq, opk)
     else:
         Message = DoubleRatchetMessage

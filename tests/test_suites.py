@@ -5,7 +5,7 @@ from __future__ import annotations
 import pytest
 
 from ratchetkit.keys.identity import IdentityKeyPair
-from ratchetkit.keys.prekey import OneTimePreKey, SignedPreKey
+from ratchetkit.keys.prekey import OneTimePreKey, SignedPqPreKey, SignedPreKey
 
 from ratchetkit.suite import (
     SigningAlg,
@@ -90,7 +90,7 @@ def _open_suite(suite: CryptoSuite, plain: bytes = b"suite-hi"):
     spk = SignedPreKey.generate(1, bob, suite)
     opk = OneTimePreKey.generate(1, suite)
     if isinstance(suite, CryptoSuiteTripleRatchet):
-        pq = suite.generate_pq_prekey(1, bob)
+        pq = SignedPqPreKey.generate(1, bob, suite, suite.pq_kem)
         bundle = suite.create_bundle(bob, spk, pq, opk)
         alice_sess, initial = suite.initiate(alice, bundle)
         first = alice_sess.encrypt(plain)

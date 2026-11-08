@@ -5,7 +5,7 @@ import pytest
 from ratchetkit.errors import InvalidKey, InvalidSignature
 from ratchetkit.handshake.message import InitialMessagePQXDH
 from ratchetkit.keys.identity import IdentityKeyPair
-from ratchetkit.keys.prekey import OneTimePreKey, SignedPreKey
+from ratchetkit.keys.prekey import OneTimePreKey, SignedPqPreKey, SignedPreKey
 
 from ratchetkit.suite import (
     SigningAlg,
@@ -49,7 +49,7 @@ def test_suite_create_bundle_triple_requires_pq_prekey():
     opk = OneTimePreKey.generate(1, suite)
     with pytest.raises(TypeError):
         suite.create_bundle(bob, spk)  # type: ignore[call-arg]
-    pq = suite.generate_pq_prekey(7, bob)
+    pq = SignedPqPreKey.generate(7, bob, suite, suite.pq_kem)
     bundle = suite.create_bundle(bob, spk, pq, opk)
     assert bundle.pq_prekey_id == 7
     assert bundle.pq_prekey is not None
@@ -61,7 +61,7 @@ def test_pqxdh_both_sides_same_secret():
     bob = IdentityKeyPair.generate(suite)
     spk = SignedPreKey.generate(1, bob, suite)
     opk = OneTimePreKey.generate(1, suite)
-    pq = suite.generate_pq_prekey(1, bob)
+    pq = SignedPqPreKey.generate(1, bob, suite, suite.pq_kem)
     bundle = suite.create_bundle(bob, spk, pq, opk)
     alice_sess, initial = suite.initiate(alice, bundle)
     first = alice_sess.encrypt(b"hello")
@@ -84,7 +84,7 @@ def test_pqxdh_without_one_time_prekey():
     alice = IdentityKeyPair.generate(suite)
     bob = IdentityKeyPair.generate(suite)
     spk = SignedPreKey.generate(1, bob, suite)
-    pq = suite.generate_pq_prekey(1, bob)
+    pq = SignedPqPreKey.generate(1, bob, suite, suite.pq_kem)
     bundle = suite.create_bundle(bob, spk, pq, None)
     alice_sess, initial = suite.initiate(alice, bundle)
     first = alice_sess.encrypt(b"hello")
@@ -105,7 +105,7 @@ def test_pqxdh_bad_signature_rejected():
     bob = IdentityKeyPair.generate(suite)
     spk = SignedPreKey.generate(1, bob, suite)
     opk = OneTimePreKey.generate(1, suite)
-    pq = suite.generate_pq_prekey(1, bob)
+    pq = SignedPqPreKey.generate(1, bob, suite, suite.pq_kem)
     bundle = suite.create_bundle(bob, spk, pq, opk)
     alice_sess, initial = suite.initiate(alice, bundle)
     first = alice_sess.encrypt(b"x")
@@ -131,7 +131,7 @@ def test_pqxdh_ciphertext_swap_rejected():
     bob = IdentityKeyPair.generate(suite)
     spk = SignedPreKey.generate(1, bob, suite)
     opk = OneTimePreKey.generate(1, suite)
-    pq = suite.generate_pq_prekey(1, bob)
+    pq = SignedPqPreKey.generate(1, bob, suite, suite.pq_kem)
     bundle = suite.create_bundle(bob, spk, pq, opk)
     alice_sess, initial = suite.initiate(alice, bundle)
     first = alice_sess.encrypt(b"x")
@@ -157,7 +157,7 @@ def test_x3dh_rejects_pq_bundle():
     bob = IdentityKeyPair.generate(suite)
     spk = SignedPreKey.generate(1, bob, suite)
     opk = OneTimePreKey.generate(1, suite)
-    pq = suite.generate_pq_prekey(1, bob)
+    pq = SignedPqPreKey.generate(1, bob, suite, suite.pq_kem)
     bundle = suite.create_bundle(bob, spk, pq, opk)
     alice = IdentityKeyPair.generate(suite)
     double = CryptoSuiteDoubleRatchet(
@@ -176,7 +176,7 @@ def test_session_triple_via_pqxdh():
     bob = IdentityKeyPair.generate(suite)
     spk = SignedPreKey.generate(1, bob, suite)
     opk = OneTimePreKey.generate(1, suite)
-    pq = suite.generate_pq_prekey(1, bob)
+    pq = SignedPqPreKey.generate(1, bob, suite, suite.pq_kem)
     bundle = suite.create_bundle(bob, spk, pq, opk)
     a_sess, initial = suite.initiate(alice, bundle)
     assert initial.pq_ciphertext is not None
@@ -198,7 +198,7 @@ def test_bundle_and_initial_roundtrip_with_pq_fields():
     bob = IdentityKeyPair.generate(suite)
     spk = SignedPreKey.generate(1, bob, suite)
     opk = OneTimePreKey.generate(3, suite)
-    pq = suite.generate_pq_prekey(9, bob)
+    pq = SignedPqPreKey.generate(9, bob, suite, suite.pq_kem)
     bundle = suite.create_bundle(bob, spk, pq, opk)
     restored = type(bundle).from_bytes(bundle.to_bytes())
     assert restored.pq_prekey_id == 9

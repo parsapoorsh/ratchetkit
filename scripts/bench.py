@@ -21,7 +21,7 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from ratchetkit.keys.identity import IdentityKeyPair
-from ratchetkit.keys.prekey import OneTimePreKey, SignedPreKey
+from ratchetkit.keys.prekey import OneTimePreKey, SignedPqPreKey, SignedPreKey
 from ratchetkit.suite import (
     CipherAlg,
     HashAlg,
@@ -58,7 +58,7 @@ def open_pair(suite):
     spk = SignedPreKey.generate(1, bob_id, suite)
     opk = OneTimePreKey.generate(1, suite)
     if isinstance(suite, CryptoSuiteTripleRatchet):
-        pq = suite.generate_pq_prekey(1, bob_id)
+        pq = SignedPqPreKey.generate(1, bob_id, suite, suite.pq_kem)
         bundle = suite.create_bundle(bob_id, spk, pq, opk)
         alice, initial = suite.initiate(alice_id, bundle)
         first = alice.encrypt(b"setup")
