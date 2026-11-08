@@ -12,10 +12,14 @@ import math
 
 from ratchetkit.errors import InvalidMessage, SerializationError
 from ratchetkit.packing import (
+    encode_bytes16,
     encode_u8,
-    encode_varint,
+    encode_u16,
+    encode_u32,
+    read_bytes16,
     read_u8,
-    read_varint,
+    read_u16,
+    read_u32,
 )
 
 
@@ -77,12 +81,11 @@ class ChunkFrame:
     def to_bytes(self) -> bytes:
         return (
             encode_u8(self.flags & 0xFF)
-            + encode_varint(self.key_epoch)
-            + encode_varint(self.chunk_index)
-            + encode_varint(self.ack_count)
-            + encode_varint(self.payload_len)
-            + encode_varint(len(self.data))
-            + self.data
+            + encode_u32(self.key_epoch)
+            + encode_u16(self.chunk_index)
+            + encode_u16(self.ack_count)
+            + encode_u16(self.payload_len)
+            + encode_bytes16(self.data)
         )
 
     @classmethod
@@ -92,14 +95,11 @@ class ChunkFrame:
         offset: int = 0,
     ) -> tuple[ChunkFrame, int]:
         flags, offset = read_u8(data, offset)
-        key_epoch, offset = read_varint(data, offset)
-        chunk_index, offset = read_varint(data, offset)
-        ack_count, offset = read_varint(data, offset)
-        payload_len, offset = read_varint(data, offset)
-        length, offset = read_varint(data, offset)
-        if offset + length > len(data):
-            raise SerializationError("truncated SCKA chunk data")
-        body = bytes(data[offset:offset + length])
+        key_epoch, offset = read_u32(data, offset)
+        chunk_index, offset = read_u16(data, offset)
+        ack_count, offset = read_u16(data, offset)
+        payload_len, offset = read_u16(data, offset)
+        body, offset = read_bytes16(data, offset)
         frame = cls(
             flags=flags,
             key_epoch=key_epoch,
@@ -108,7 +108,7 @@ class ChunkFrame:
             payload_len=payload_len,
             data=body,
         )
-        return frame, offset + length
+        return frame, offset
 
     @classmethod
     def from_bytes(cls, raw: bytes) -> ChunkFrame:

@@ -146,36 +146,6 @@ def read_u32(
     return struct.unpack_from(">I", data, offset)[0], offset + 4
 
 
-def encode_varint(value: int) -> bytes:
-    """Unsigned LEB128. Counters and small lengths on protocol packets."""
-    if value < 0:
-        raise SerializationError("varint out of range")
-    out = bytearray()
-    while value > 0x7F:
-        out.append((value & 0x7F) | 0x80)
-        value >>= 7
-    out.append(value)
-    return bytes(out)
-
-
-def read_varint(
-    data: bytes | memoryview,
-    offset: int,
-) -> tuple[int, int]:
-    value = 0
-    shift = 0
-    for _ in range(10):
-        if offset >= len(data):
-            raise SerializationError("truncated varint")
-        byte = int(data[offset])
-        offset += 1
-        value |= (byte & 0x7F) << shift
-        if byte < 0x80:
-            return value, offset
-        shift += 7
-    raise SerializationError("varint too long")
-
-
 def encode_u8(value: int) -> bytes:
     if value < 0 or value > 0xFF:
         raise SerializationError("u8 out of range")

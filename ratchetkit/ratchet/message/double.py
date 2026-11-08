@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 from ratchetkit.errors import SerializationError
-from ratchetkit.packing import encode_varint, read_varint
+from ratchetkit.packing import encode_u32, read_u32
 from ratchetkit.ratchet.header import RatchetHeader
 from ratchetkit.ratchet.message.base import RatchetMessage
 
@@ -27,8 +27,8 @@ class DoubleRatchetMessage(RatchetMessage):
     def header_bytes(self) -> bytes:
         return (
             self.ratchet_public
-            + encode_varint(self.previous_counter)
-            + encode_varint(self.counter)
+            + encode_u32(self.previous_counter)
+            + encode_u32(self.counter)
         )
 
     def to_bytes(self) -> bytes:
@@ -52,8 +52,8 @@ class DoubleRatchetMessage(RatchetMessage):
             start = offset
             _public, _ct, offset = RatchetHeader.read_kem(data, offset)
             ratchet_public = bytes(data[start:offset])
-        previous_counter, offset = read_varint(data, offset)
-        counter, offset = read_varint(data, offset)
+        previous_counter, offset = read_u32(data, offset)
+        counter, offset = read_u32(data, offset)
         return cls(
             ratchet_public=ratchet_public,
             previous_counter=previous_counter,

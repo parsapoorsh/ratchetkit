@@ -13,7 +13,7 @@ Two families of blobs:
 | Family | Used for | Byte-string prefix |
 |--------|----------|--------------------|
 | Protocol packets | handshake, published bundles | `bytes16` (`u16` length) |
-| Ratchet messages | Double / Triple ciphertext | fixed DH public, varint counters, tail MAC |
+| Ratchet messages | Double / Triple ciphertext | fixed DH public, u32 counters, tail MAC |
 | Persistence blobs | `Session.to_bytes()` and nested ratchet/suite state | `bytes32` (`u32` length) |
 
 ---
@@ -25,7 +25,6 @@ Two families of blobs:
 | `u8` | 1 byte |
 | `u16` | 2 bytes, big-endian |
 | `u32` | 4 bytes, big-endian |
-| `varint` | unsigned LEB128 (7 data bits per byte, high bit continues) |
 | `bool` | `u8`: `0x00` false, `0x01` true; any other value is invalid |
 | `bytes16` | `u16 length` then `length` bytes. Max `0xFFFF`. |
 | `bytes32` | `u32 length` then `length` bytes. Max `0xFFFFFFFF`. |
@@ -233,8 +232,8 @@ No constructor id; the session suite selects the parser
 
 ```
 ratchet_public              bytes   DH: kem.public_size; KEM: RatchetHeader
-previous_counter            varint
-counter                     varint
+previous_counter            u32
+counter                     u32
 ciphertext                  bytes   until last tag_size bytes
 mac                         bytes   suite.tag_size, last
 ```
@@ -243,8 +242,8 @@ mac                         bytes   suite.tag_size, last
 
 ```
 ratchet_public
-previous_counter            varint
-counter                     varint
+previous_counter            u32
+counter                     u32
 ```
 
 `ratchet_public` is a [RatchetHeader](#ratchetheader-kem): raw DH public
@@ -286,8 +285,8 @@ mac                         bytes   suite.tag_size, last
 
 ```
 ratchet_public              bytes   same rule as Double Ratchet
-previous_counter            varint
-counter                     varint
+previous_counter            u32
+counter                     u32
 ```
 
 `spqr_header` is an [SpqrHeader](#spqrheader).
@@ -306,12 +305,11 @@ messages. No constructor id; `n_chunks` comes from the suite.
 
 ```
 flags                       u8
-key_epoch                   varint
-chunk_index                 varint
-ack_count                   varint
-payload_len                 varint
-data_len                    varint
-data                        bytes   data_len bytes
+key_epoch                   u32
+chunk_index                 u16
+ack_count                   u16
+payload_len                 u16
+data                        bytes16
 ```
 
 | Flag | Value | Meaning |
@@ -352,10 +350,10 @@ Chain identity for skipped-key lookup is the encapsulation ciphertext.
 Sparse PQ ratchet header inside `TripleRatchetMessage`.
 
 ```
-t_s                         varint  sending key epoch
-previous2_counter           varint  period in the epoch before last
-previous_counter            varint  period in the previous sending epoch
-counter                     varint  period in t_s
+t_s                         u32     sending key epoch
+previous2_counter           u32     period in the epoch before last
+previous_counter            u32     period in the previous sending epoch
+counter                     u32     period in t_s
 scka_msg                    bytes   a ChunkFrame (self-describing)
 ```
 
@@ -644,11 +642,11 @@ Field lengths follow the suite. Common values:
 A Double Ratchet message with X25519 + AES-256 + 16-byte tag is:
 
 ```
-32 (ratchet_public) + varint previous + varint counter
+32 (ratchet_public) + 4 (previous) + 4 (counter)
   + len(ciphertext) + 16 (mac)
 ```
 
-For counters below 128 that is 50 bytes of overhead plus the ciphertext.
+That is 56 bytes of overhead plus the ciphertext.
 
 ---
 

@@ -24,12 +24,10 @@ from ratchetkit.packing import (
     encode_bytes,
     encode_u32,
     encode_u8,
-    encode_varint,
     read_bool,
     read_bytes,
     read_u32,
     read_u8,
-    read_varint,
 )
 from ratchetkit.ratchet.limits import RatchetLimits
 from ratchetkit.scka.chunk import ChunkFrame
@@ -104,10 +102,10 @@ class SpqrHeader:
 
     def to_bytes(self) -> bytes:
         return (
-            encode_varint(self.t_s)
-            + encode_varint(self.previous2_counter)
-            + encode_varint(self.previous_counter)
-            + encode_varint(self.counter)
+            encode_u32(self.t_s)
+            + encode_u32(self.previous2_counter)
+            + encode_u32(self.previous_counter)
+            + encode_u32(self.counter)
             + self.scka_msg
         )
 
@@ -117,10 +115,10 @@ class SpqrHeader:
         data: bytes | memoryview,
         offset: int = 0,
     ) -> tuple[SpqrHeader, int]:
-        t_s, offset = read_varint(data, offset)
-        previous2_counter, offset = read_varint(data, offset)
-        previous_counter, offset = read_varint(data, offset)
-        counter, offset = read_varint(data, offset)
+        t_s, offset = read_u32(data, offset)
+        previous2_counter, offset = read_u32(data, offset)
+        previous_counter, offset = read_u32(data, offset)
+        counter, offset = read_u32(data, offset)
         start = offset
         _frame, offset = ChunkFrame.read(data, offset)
         return cls(
