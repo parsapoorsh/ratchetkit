@@ -84,7 +84,7 @@ def spqr_recv_chain(session: Session) -> ChainKey:
 
 
 def hybrid_message_keys(
-    suite: CryptoSuite,
+    suite: CryptoSuiteDoubleRatchet,
     triple: TripleRatchet,
     ec_chain: ChainKey,
     pq_chain: ChainKey,
@@ -103,7 +103,7 @@ def hybrid_message_keys(
 def decrypt_with_message_keys(
     keys: MessageKeys,
     message: RatchetMessage,
-    suite: CryptoSuite,
+    suite: CryptoSuiteDoubleRatchet,
     associated_data: bytes,
 ) -> bytes | None:
     """Passive decrypt using a stolen message key (SIV + MAC check)."""
@@ -149,7 +149,7 @@ def steal_receiver_message_keys(
 
 def hollow_from_root(
     kind: str,
-    suite: CryptoSuite,
+    suite: CryptoSuiteDoubleRatchet,
     root_bytes: bytes,
     our_ratchet_key=None,
     associated_data: bytes = b"",

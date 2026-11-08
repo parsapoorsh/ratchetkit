@@ -11,7 +11,7 @@ from ratchetkit.keys.keypair import KeyPair, PublicKey
 from ratchetkit.packing import encode_bytes, read_bytes
 
 if TYPE_CHECKING:
-    from ratchetkit.suite.double import CryptoSuiteDoubleRatchet as CryptoSuite
+    from ratchetkit.suite.double import CryptoSuiteDoubleRatchet
 
 
 @dataclass
@@ -28,7 +28,7 @@ class SenderChain:
         )
 
     @classmethod
-    def from_bytes(cls, data: bytes, suite: CryptoSuite) -> SenderChain:
+    def from_bytes(cls, data: bytes, suite: CryptoSuiteDoubleRatchet) -> SenderChain:
         key_blob, offset = read_bytes(data, 0)
         chain_blob, offset = read_bytes(data, offset)
         if offset != len(data):
@@ -57,7 +57,7 @@ class ReceiverChain:
         )
 
     @classmethod
-    def from_bytes(cls, data: bytes, suite: CryptoSuite) -> ReceiverChain:
+    def from_bytes(cls, data: bytes, suite: CryptoSuiteDoubleRatchet) -> ReceiverChain:
         public_blob, offset = read_bytes(data, 0)
         chain_blob, offset = read_bytes(data, offset)
         if offset != len(data):

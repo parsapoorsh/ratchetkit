@@ -36,7 +36,7 @@ from ratchetkit.suite import KdfLabel
 
 if TYPE_CHECKING:
     from ratchetkit.algorithms.kem.base import KemBackend
-    from ratchetkit.suite.double import CryptoSuiteDoubleRatchet as CryptoSuite
+    from ratchetkit.suite.double import CryptoSuiteDoubleRatchet
 
 
 # Direction constants (spec A2B / B2A).
@@ -69,7 +69,7 @@ class EpochChains:
         return b"".join(parts)
 
     @classmethod
-    def from_bytes(cls, data: bytes, suite: CryptoSuite) -> EpochChains:
+    def from_bytes(cls, data: bytes, suite: CryptoSuiteDoubleRatchet) -> EpochChains:
         has_send, offset = read_bool(data, 0)
         send = None
         if has_send:
@@ -157,7 +157,7 @@ class SparsePostQuantumRatchet(Constructor):
 
     def __init__(
         self,
-        suite: CryptoSuite,
+        suite: CryptoSuiteDoubleRatchet,
         root_key: bytes,
         scka: ChunkedKemScka,
         direction: int,
@@ -210,7 +210,7 @@ class SparsePostQuantumRatchet(Constructor):
     @classmethod
     def initiate(
         cls,
-        suite: CryptoSuite,
+        suite: CryptoSuiteDoubleRatchet,
         shared_secret: bytes,
         pq_kem: KemBackend,
         n_chunks: int = 8,
@@ -235,7 +235,7 @@ class SparsePostQuantumRatchet(Constructor):
     @classmethod
     def accept(
         cls,
-        suite: CryptoSuite,
+        suite: CryptoSuiteDoubleRatchet,
         shared_secret: bytes,
         pq_kem: KemBackend,
         n_chunks: int = 8,
@@ -260,7 +260,7 @@ class SparsePostQuantumRatchet(Constructor):
         return ratchet
 
     @staticmethod
-    def kdf_init(suite: CryptoSuite, sk: bytes) -> tuple[bytes, bytes, bytes]:
+    def kdf_init(suite: CryptoSuiteDoubleRatchet, sk: bytes) -> tuple[bytes, bytes, bytes]:
         size = HASH[suite.digest].digest_size
         kdf = Kdf(suite.digest)
         material = kdf.hkdf(
@@ -614,7 +614,7 @@ class SparsePostQuantumRatchet(Constructor):
     def from_bytes(
         cls,
         data: bytes,
-        suite: CryptoSuite,
+        suite: CryptoSuiteDoubleRatchet,
         pq_kem: KemBackend,
     ) -> SparsePostQuantumRatchet:
         offset = cls.constructor_expect(data)

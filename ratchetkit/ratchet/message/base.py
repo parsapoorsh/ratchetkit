@@ -6,7 +6,7 @@ from abc import ABC, abstractmethod
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from ratchetkit.suite.double import CryptoSuiteDoubleRatchet as CryptoSuite
+    from ratchetkit.suite.double import CryptoSuiteDoubleRatchet
 
 
 class RatchetMessage(ABC):
@@ -22,7 +22,7 @@ class RatchetMessage(ABC):
 
     @classmethod
     @abstractmethod
-    def from_bytes(cls, data: bytes, suite: CryptoSuite) -> RatchetMessage:
+    def from_bytes(cls, data: bytes, suite: CryptoSuiteDoubleRatchet) -> RatchetMessage:
         """Parse a full on-wire blob of this concrete type."""
 
     # Concrete types expose ``ciphertext`` and ``mac`` as dataclass fields.

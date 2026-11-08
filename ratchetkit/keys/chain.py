@@ -13,7 +13,7 @@ from ratchetkit.packing import encode_bytes, encode_u32, read_bytes, read_u32
 from ratchetkit.suite import ChainKeySeed
 
 if TYPE_CHECKING:
-    from ratchetkit.suite.double import CryptoSuiteDoubleRatchet as CryptoSuite
+    from ratchetkit.suite.double import CryptoSuiteDoubleRatchet
 
 
 class ChainKey:
@@ -23,7 +23,7 @@ class ChainKey:
     suite digest length so a truncated/empty key cannot advance the chain.
     """
 
-    def __init__(self, key: bytes, index: int, suite: CryptoSuite):
+    def __init__(self, key: bytes, index: int, suite: CryptoSuiteDoubleRatchet):
         expected = HASH[suite.digest].digest_size
         if not isinstance(key, (bytes, bytearray)) or len(key) != expected:
             raise InvalidKey(
@@ -51,7 +51,7 @@ class ChainKey:
         return encode_bytes(self.key) + encode_u32(self.index)
 
     @classmethod
-    def from_bytes(cls, data: bytes, suite: CryptoSuite) -> ChainKey:
+    def from_bytes(cls, data: bytes, suite: CryptoSuiteDoubleRatchet) -> ChainKey:
         key, offset = read_bytes(data, 0)
         index, offset = read_u32(data, offset)
         if offset != len(data):

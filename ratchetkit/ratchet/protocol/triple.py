@@ -23,7 +23,7 @@ from ratchetkit.suite import KdfLabel
 from ratchetkit.suite.registry import HASH
 
 if TYPE_CHECKING:
-    from ratchetkit.suite.double import CryptoSuiteDoubleRatchet as CryptoSuite
+    from ratchetkit.suite.double import CryptoSuiteDoubleRatchet
     from ratchetkit.suite.triple import CryptoSuiteTripleRatchet
 
 
@@ -37,7 +37,7 @@ class TripleRatchet(Ratchet[TripleRatchetMessage], Constructor):
 
     def __init__(
         self,
-        suite: CryptoSuite,
+        suite: CryptoSuiteDoubleRatchet,
         ec: DoubleRatchet,
         spqr: SparsePostQuantumRatchet,
     ):
@@ -105,7 +105,7 @@ class TripleRatchet(Ratchet[TripleRatchetMessage], Constructor):
         return cls(suite=suite, ec=ec, spqr=spqr)
 
     @staticmethod
-    def split_sk(suite: CryptoSuite, sk: bytes) -> tuple[bytes, bytes]:
+    def split_sk(suite: CryptoSuiteDoubleRatchet, sk: bytes) -> tuple[bytes, bytes]:
         """Expand handshake SK into SKec and SKscka (spec §7.1)."""
         size = HASH[suite.digest].digest_size
         kdf = Kdf(suite.digest)

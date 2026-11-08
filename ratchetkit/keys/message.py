@@ -17,7 +17,7 @@ from ratchetkit.suite import KdfLabel
 from ratchetkit.suite.registry import CIPHER, HASH
 
 if TYPE_CHECKING:
-    from ratchetkit.suite.double import CryptoSuiteDoubleRatchet as CryptoSuite
+    from ratchetkit.suite.double import CryptoSuiteDoubleRatchet
 
 
 @dataclass(frozen=True)
@@ -33,7 +33,7 @@ class MessageKeys:
     counter: int
 
     @classmethod
-    def derive(cls, seed: bytes, counter: int, suite: CryptoSuite) -> MessageKeys:
+    def derive(cls, seed: bytes, counter: int, suite: CryptoSuiteDoubleRatchet) -> MessageKeys:
         cipher = CIPHER[suite.cipher]
         digest = HASH[suite.digest]
         key_size = cipher.key_size
@@ -51,20 +51,20 @@ class MessageKeys:
             counter=counter,
         )
 
-    def nonce(self, tag: bytes, suite: CryptoSuite) -> bytes:
+    def nonce(self, tag: bytes, suite: CryptoSuiteDoubleRatchet) -> bytes:
         size = CIPHER[suite.cipher].iv_size()
         if len(tag) >= size:
             return tag[:size]
         return tag + bytes(size - len(tag))
 
-    def encrypt(self, plaintext: bytes, suite: CryptoSuite, tag: bytes) -> bytes:
+    def encrypt(self, plaintext: bytes, suite: CryptoSuiteDoubleRatchet, tag: bytes) -> bytes:
         return CIPHER[suite.cipher].encrypt(
             self.cipher_key,
             self.nonce(tag, suite),
             plaintext,
         )
 
-    def decrypt(self, ciphertext: bytes, suite: CryptoSuite, tag: bytes) -> bytes:
+    def decrypt(self, ciphertext: bytes, suite: CryptoSuiteDoubleRatchet, tag: bytes) -> bytes:
         return CIPHER[suite.cipher].decrypt(
             self.cipher_key,
             self.nonce(tag, suite),
@@ -76,7 +76,7 @@ class MessageKeys:
         header: bytes,
         associated_data: bytes,
         data: bytes,
-        suite: CryptoSuite,
+        suite: CryptoSuiteDoubleRatchet,
     ) -> bytes:
         material = associated_data + header + data
         tag = Kdf(suite.digest).hmac_digest(self.mac_key, material)
@@ -88,7 +88,7 @@ class MessageKeys:
         associated_data: bytes,
         data: bytes,
         mac: bytes,
-        suite: CryptoSuite,
+        suite: CryptoSuiteDoubleRatchet,
     ) -> None:
         expected = self.compute_mac(header, associated_data, data, suite)
         if not hmac.compare_digest(expected, mac):

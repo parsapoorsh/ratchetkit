@@ -14,7 +14,6 @@ from ratchetkit.ratchet.protocol import Ratchet
 from ratchetkit.ratchet.protocol.double import DoubleRatchet
 from ratchetkit.ratchet.protocol.triple import TripleRatchet
 from ratchetkit.suite.double import CryptoSuiteDoubleRatchet
-from ratchetkit.suite.double import CryptoSuiteDoubleRatchet as CryptoSuite
 from ratchetkit.suite.triple import CryptoSuiteTripleRatchet
 
 
@@ -29,7 +28,7 @@ class Session(Constructor):
 
     def __init__(
         self,
-        suite: CryptoSuite,
+        suite: CryptoSuiteDoubleRatchet,
         ratchet: Ratchet,
         associated_data: bytes = b"",
     ):
@@ -91,7 +90,7 @@ class Session(Constructor):
 
         suite_id, _ = Constructor.constructor_read(suite_blob, 0)
         if suite_id is ConstructorId.SUITE_TRIPLE:
-            suite: CryptoSuite = CryptoSuiteTripleRatchet.from_bytes(suite_blob)
+            suite: CryptoSuiteDoubleRatchet = CryptoSuiteTripleRatchet.from_bytes(suite_blob)
             ratchet: Ratchet = TripleRatchet.from_bytes(ratchet_blob, suite)
         elif suite_id is ConstructorId.SUITE_DOUBLE:
             suite = CryptoSuiteDoubleRatchet.from_bytes(suite_blob)

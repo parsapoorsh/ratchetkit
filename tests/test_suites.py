@@ -1,4 +1,4 @@
-"""Pluggability matrix across CryptoSuite combinations."""
+"""Pluggability matrix across CryptoSuiteDoubleRatchet combinations."""
 
 from __future__ import annotations
 
@@ -84,7 +84,7 @@ SUITES = [
 ]
 
 
-def _open_suite(suite: CryptoSuite, plain: bytes = b"suite-hi"):
+def _open_suite(suite: CryptoSuiteDoubleRatchet, plain: bytes = b"suite-hi"):
     alice = IdentityKeyPair.generate(suite)
     bob = IdentityKeyPair.generate(suite)
     spk = SignedPreKey.generate(1, bob, suite)
@@ -112,7 +112,7 @@ def _open_suite(suite: CryptoSuite, plain: bytes = b"suite-hi"):
 
 
 @pytest.mark.parametrize("suite", SUITES, ids=lambda s: repr(s))
-def test_suite_roundtrip(suite: CryptoSuite):
+def test_suite_roundtrip(suite: CryptoSuiteDoubleRatchet):
     alice_sess, bob_sess, first = _open_suite(suite)
     reply = bob_sess.encrypt(b"suite-ack")
     assert alice_sess.decrypt(reply) == b"suite-ack"

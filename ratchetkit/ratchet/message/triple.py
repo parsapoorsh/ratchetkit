@@ -11,7 +11,7 @@ from ratchetkit.ratchet.message.double import DoubleRatchetMessage
 from ratchetkit.ratchet.spqr import SpqrHeader
 
 if TYPE_CHECKING:
-    from ratchetkit.suite.double import CryptoSuiteDoubleRatchet as CryptoSuite
+    from ratchetkit.suite.double import CryptoSuiteDoubleRatchet
 
 
 @dataclass
@@ -30,7 +30,7 @@ class TripleRatchetMessage(RatchetMessage):
         return self.header_bytes() + self.ciphertext + self.mac
 
     @classmethod
-    def from_bytes(cls, data: bytes, suite: CryptoSuite) -> TripleRatchetMessage:
+    def from_bytes(cls, data: bytes, suite: CryptoSuiteDoubleRatchet) -> TripleRatchetMessage:
         if not data:
             raise SerializationError("empty triple ratchet message")
         ec_message, offset = DoubleRatchetMessage.read_header(data, 0, suite)

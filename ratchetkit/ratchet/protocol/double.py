@@ -26,7 +26,7 @@ from ratchetkit.ratchet.protocol.base import Ratchet
 from ratchetkit.ratchet.skipped import SkippedMessageKeys
 
 if TYPE_CHECKING:
-    from ratchetkit.suite.double import CryptoSuiteDoubleRatchet as CryptoSuite
+    from ratchetkit.suite.double import CryptoSuiteDoubleRatchet
 
 
 class DoubleRatchet(Ratchet[DoubleRatchetMessage], Constructor):
@@ -38,7 +38,7 @@ class DoubleRatchet(Ratchet[DoubleRatchetMessage], Constructor):
 
     def __init__(
         self,
-        suite: CryptoSuite,
+        suite: CryptoSuiteDoubleRatchet,
         root_key: RootKey,
         sender_chain: SenderChain | None = None,
         receiver_chains: list[ReceiverChain] | None = None,
@@ -63,7 +63,7 @@ class DoubleRatchet(Ratchet[DoubleRatchetMessage], Constructor):
     @classmethod
     def initiate(
         cls,
-        suite: CryptoSuite,
+        suite: CryptoSuiteDoubleRatchet,
         shared_secret: bytes,
         our_ratchet_key: KeyPair,
         their_ratchet_public: PublicKey,
@@ -92,7 +92,7 @@ class DoubleRatchet(Ratchet[DoubleRatchetMessage], Constructor):
     @classmethod
     def accept(
         cls,
-        suite: CryptoSuite,
+        suite: CryptoSuiteDoubleRatchet,
         shared_secret: bytes,
         their_ratchet_public: PublicKey,
         our_ratchet_key: KeyPair,
@@ -309,7 +309,7 @@ class DoubleRatchet(Ratchet[DoubleRatchetMessage], Constructor):
         return b"".join(parts)
 
     @classmethod
-    def from_bytes(cls, data: bytes, suite: CryptoSuite) -> DoubleRatchet:
+    def from_bytes(cls, data: bytes, suite: CryptoSuiteDoubleRatchet) -> DoubleRatchet:
         offset = cls.constructor_expect(data)
         root_blob, offset = read_bytes(data, offset)
         previous_counter, offset = read_u32(data, offset)

@@ -11,7 +11,7 @@ from ratchetkit.ratchet.header import RatchetHeader
 from ratchetkit.ratchet.message.base import RatchetMessage
 
 if TYPE_CHECKING:
-    from ratchetkit.suite.double import CryptoSuiteDoubleRatchet as CryptoSuite
+    from ratchetkit.suite.double import CryptoSuiteDoubleRatchet
 
 
 @dataclass
@@ -39,7 +39,7 @@ class DoubleRatchetMessage(RatchetMessage):
         cls,
         data: bytes | memoryview,
         offset: int,
-        suite: CryptoSuite,
+        suite: CryptoSuiteDoubleRatchet,
     ) -> tuple[DoubleRatchetMessage, int]:
         kem = suite.kem
         if kem.supports_dh:
@@ -63,7 +63,7 @@ class DoubleRatchetMessage(RatchetMessage):
         ), offset
 
     @classmethod
-    def from_bytes(cls, data: bytes, suite: CryptoSuite) -> DoubleRatchetMessage:
+    def from_bytes(cls, data: bytes, suite: CryptoSuiteDoubleRatchet) -> DoubleRatchetMessage:
         if not data:
             raise SerializationError("empty ratchet message")
         message, offset = cls.read_header(data, 0, suite)

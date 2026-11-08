@@ -10,7 +10,7 @@ from ratchetkit.ratchet.message.base import RatchetMessage
 if TYPE_CHECKING:
     from typing import Self
 
-    from ratchetkit.suite.double import CryptoSuiteDoubleRatchet as CryptoSuite
+    from ratchetkit.suite.double import CryptoSuiteDoubleRatchet
 
 
 M = TypeVar("M", bound=RatchetMessage)
@@ -19,7 +19,7 @@ M = TypeVar("M", bound=RatchetMessage)
 class Ratchet(ABC, Generic[M]):
     """Stateful ratchet half used by :class:`~ratchetkit.session.Session`."""
 
-    suite: CryptoSuite
+    suite: CryptoSuiteDoubleRatchet
 
     @abstractmethod
     def encrypt(
@@ -43,5 +43,5 @@ class Ratchet(ABC, Generic[M]):
 
     @classmethod
     @abstractmethod
-    def from_bytes(cls, data: bytes, suite: CryptoSuite) -> Self:
+    def from_bytes(cls, data: bytes, suite: CryptoSuiteDoubleRatchet) -> Self:
         """Deserialize ratchet state for this concrete type."""

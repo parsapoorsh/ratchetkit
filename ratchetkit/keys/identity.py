@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING
 from ratchetkit.keys.keypair import KeyPair, SigningKeyPair
 
 if TYPE_CHECKING:
-    from ratchetkit.suite.double import CryptoSuiteDoubleRatchet as CryptoSuite
+    from ratchetkit.suite.double import CryptoSuiteDoubleRatchet
 
 
 @dataclass
@@ -22,7 +22,7 @@ class IdentityKeyPair:
     agreement: KeyPair | None = None
 
     @classmethod
-    def generate(cls, suite: CryptoSuite) -> IdentityKeyPair:
+    def generate(cls, suite: CryptoSuiteDoubleRatchet) -> IdentityKeyPair:
         signing = suite.signer.generate_keypair()
         agreement = suite.kem.generate_keypair() if suite.kem.supports_dh else None
         return cls(signing=signing, agreement=agreement)

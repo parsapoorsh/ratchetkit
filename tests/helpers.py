@@ -31,7 +31,7 @@ from ratchetkit.suite.triple import CryptoSuiteTripleRatchet
 SUITE_KINDS = ("double", "triple")
 
 
-def make_suite(kind: str = "double", **kwargs) -> CryptoSuite:
+def make_suite(kind: str = "double", **kwargs) -> CryptoSuiteDoubleRatchet:
     digest = kwargs.pop("digest", HashAlg.SHA256)
     cipher = kwargs.pop("cipher", CipherAlg.AES256)
     key_exchange = kwargs.pop("key_exchange", KeyExchangeAlg.X25519)
@@ -77,7 +77,7 @@ def make_suite(kind: str = "double", **kwargs) -> CryptoSuite:
 def open_pair(
     kind: str = "double",
     first_plain: bytes = b"hi",
-    suite: CryptoSuite | None = None,
+    suite: CryptoSuiteDoubleRatchet | None = None,
     opk_id: int = 1,
     spk_id: int = 1,
 ):

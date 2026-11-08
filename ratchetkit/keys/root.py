@@ -12,13 +12,13 @@ from ratchetkit.suite import KdfLabel
 from ratchetkit.suite.registry import HASH
 
 if TYPE_CHECKING:
-    from ratchetkit.suite.double import CryptoSuiteDoubleRatchet as CryptoSuite
+    from ratchetkit.suite.double import CryptoSuiteDoubleRatchet
 
 
 class RootKey:
     """Root key advanced on each DH/KEM ratchet step."""
 
-    def __init__(self, key: bytes, suite: CryptoSuite):
+    def __init__(self, key: bytes, suite: CryptoSuiteDoubleRatchet):
         expected = HASH[suite.digest].digest_size
         if not isinstance(key, (bytes, bytearray)) or len(key) != expected:
             raise InvalidKey(
@@ -59,7 +59,7 @@ class RootKey:
         return encode_bytes(self.key)
 
     @classmethod
-    def from_bytes(cls, data: bytes, suite: CryptoSuite) -> RootKey:
+    def from_bytes(cls, data: bytes, suite: CryptoSuiteDoubleRatchet) -> RootKey:
         key, offset = read_bytes(data, 0)
         if offset != len(data):
             raise SerializationError("trailing bytes in root key")

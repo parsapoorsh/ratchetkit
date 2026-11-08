@@ -28,7 +28,6 @@ from ratchetkit.suite.registry import HASH
 if TYPE_CHECKING:
     from ratchetkit.algorithms.kem.base import KemBackend
     from ratchetkit.suite.double import CryptoSuiteDoubleRatchet
-    from ratchetkit.suite.double import CryptoSuiteDoubleRatchet as CryptoSuite
 
 
 @dataclass
@@ -51,7 +50,7 @@ class SignedPreKey:
         cls,
         key_id: int,
         identity: IdentityKeyPair,
-        suite: CryptoSuite,
+        suite: CryptoSuiteDoubleRatchet,
     ) -> SignedPreKey:
         pair = suite.kem.generate_keypair()
         signature = suite.signer.sign(
@@ -68,7 +67,7 @@ class OneTimePreKey:
     key_pair: KeyPair
 
     @classmethod
-    def generate(cls, key_id: int, suite: CryptoSuite) -> OneTimePreKey:
+    def generate(cls, key_id: int, suite: CryptoSuiteDoubleRatchet) -> OneTimePreKey:
         return cls(key_id=key_id, key_pair=suite.kem.generate_keypair())
 
 
@@ -95,7 +94,7 @@ class SignedPqPreKey:
         cls,
         key_id: int,
         identity: IdentityKeyPair,
-        suite: CryptoSuite,
+        suite: CryptoSuiteDoubleRatchet,
         pq_kem: KemBackend,
     ) -> SignedPqPreKey:
         pair = pq_kem.generate_keypair()
@@ -122,7 +121,7 @@ class PreKeyBundle(Constructor):
     pq_prekey: PublicKey | None = None
     pq_prekey_signature: bytes | None = None
 
-    def verify(self, suite: CryptoSuite) -> None:
+    def verify(self, suite: CryptoSuiteDoubleRatchet) -> None:
         if self.identity_signing.algorithm != suite.signing:
             raise InvalidSignature(
                 f"identity signing algorithm {self.identity_signing.algorithm!r} "
