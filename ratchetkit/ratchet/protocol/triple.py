@@ -149,19 +149,19 @@ class TripleRatchet(Ratchet[TripleRatchetMessage], Constructor):
         pq_keys, spqr_header = self.spqr.send_key()
         seed = self.hybrid_message_key(ec_keys.cipher_key, pq_keys.cipher_key)
         hybrid = MessageKeys.derive(seed, ec_keys.counter, self.suite)
-        ciphertext = hybrid.encrypt(plaintext, self.suite)
         message = TripleRatchetMessage(
             ec_message=ec_header,
             spqr_header=spqr_header,
-            ciphertext=ciphertext,
+            ciphertext=b"",
             mac=b"",
         )
         message.mac = hybrid.compute_mac(
             message.header_bytes(),
             associated_data,
-            ciphertext,
+            plaintext,
             self.suite,
         )
+        message.ciphertext = hybrid.encrypt(plaintext, self.suite, message.mac)
         return message
 
     def decrypt(
@@ -188,14 +188,15 @@ class TripleRatchet(Ratchet[TripleRatchetMessage], Constructor):
         pq_keys = self.spqr.receive_key(message.spqr_header)
         seed = self.hybrid_message_key(ec_keys.cipher_key, pq_keys.cipher_key)
         hybrid = MessageKeys.derive(seed, ec_keys.counter, self.suite)
+        plaintext = hybrid.decrypt(message.ciphertext, self.suite, message.mac)
         hybrid.verify_mac(
             message.header_bytes(),
             associated_data,
-            message.ciphertext,
+            plaintext,
             message.mac,
             self.suite,
         )
-        return hybrid.decrypt(message.ciphertext, self.suite)
+        return plaintext
 
     def clone(self) -> TripleRatchet:
         """Trial-decrypt copy via ``__init__`` (no deepcopy)."""

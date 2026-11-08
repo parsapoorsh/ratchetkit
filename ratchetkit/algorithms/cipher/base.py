@@ -11,8 +11,8 @@ from cryptography.hazmat.primitives.ciphers import Cipher, modes
 class CipherAlgorithm(ABC):
     """Symmetric cipher used when deriving and applying MessageKeys.
 
-    Block ciphers run in CTR (single-use message keys). Stream ciphers
-    override encrypt / decrypt.
+    Block ciphers run in CTR. The nonce is the HMAC tag (SIV). Stream
+    ciphers override encrypt / decrypt.
     """
 
     name: str

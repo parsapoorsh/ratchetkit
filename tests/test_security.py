@@ -360,10 +360,10 @@ def test_skipped_cache_hard_fails_instead_of_evicting():
     cache = SkippedMessageKeys(
         RatchetLimits(MAX_MESSAGE_KEYS=2, MAX_FORWARD_JUMPS=100, MAX_RECEIVER_CHAINS=5)
     )
-    cache.store(b"r", MessageKeys(b"c" * 32, b"m" * 32, b"i" * 16, 0))
-    cache.store(b"r", MessageKeys(b"c" * 32, b"m" * 32, b"i" * 16, 1))
+    cache.store(b"r", MessageKeys(b"c" * 32, b"m" * 32, 0))
+    cache.store(b"r", MessageKeys(b"c" * 32, b"m" * 32, 1))
     with pytest.raises(TooManySkippedKeys):
-        cache.store(b"r", MessageKeys(b"c" * 32, b"m" * 32, b"i" * 16, 2))
+        cache.store(b"r", MessageKeys(b"c" * 32, b"m" * 32, 2))
     assert len(cache.entries) == 2
     assert cache.peek(b"r", 0) is not None
 

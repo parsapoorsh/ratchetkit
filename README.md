@@ -70,7 +70,7 @@ alice_session = Session.from_bytes(blob)
 
 Use **`CryptoSuiteTripleRatchet`**: classical Double Ratchet in parallel with a
 Sparse PQ Ratchet driven by chunked ML-KEM SCKA. Message keys are combined with
-`KDF_HYBRID` before encrypt-then-HMAC. All PQ fields are required
+`KDF_HYBRID` before HMAC-SIV (tag as CTR IV). All PQ fields are required
 
 ```python
 from ratchetkit.suite import CipherAlg, HashAlg, KeyExchangeAlg, SigningAlg
@@ -144,8 +144,8 @@ pq_identity = CryptoSuiteDoubleRatchet(
 `pq_key_exchange`, `scka_chunks`, and `pq_kem`. Agreement and signing are
 independent (`KeyExchangeAlg` vs `SigningAlg`).
 
-Block ciphers always use **CTR** inside the cipher algorithm class. Message
-authentication is always encrypt-then-HMAC. Cipher keys must be **at least
+Block ciphers always use **CTR** inside the cipher algorithm class. The
+HMAC tag is the CTR / ChaCha nonce (SIV). Cipher keys must be **at least
 256 bits** (AES-128 / Camellia-128 are rejected).
 
 Each hash, cipher, KEM, and signing backend lives under
@@ -180,7 +180,7 @@ behaviors:
 | Forward jump | Cap (`MAX_FORWARD_JUMPS`) stops skip DoS |
 | DH public keys | Invalid / low-order points -> `InvalidMessage` (no state change) |
 | Empty / zero secrets | Root, chain, and DH outputs rejected |
-| MAC | Encrypt-then-HMAC, constant-time compare; `tag_size` default 16 (min 10) |
+| MAC | HMAC-SIV (tag is CTR IV), constant-time compare; `tag_size` default 16 (min 10) |
 | Secure deletion | Python cannot guarantee wipe of GC'd bytes; drop references promptly |
 | OPKs | Caller must delete one-time prekeys after a successful accept |
 

@@ -137,20 +137,20 @@ class DoubleRatchet(Ratchet[DoubleRatchetMessage], Constructor):
         associated_data: bytes = b"",
     ) -> DoubleRatchetMessage:
         keys, header, previous_counter = self.take_send_keys()
-        ciphertext = keys.encrypt(plaintext, self.suite)
         message = DoubleRatchetMessage(
             ratchet_public=header,
             previous_counter=previous_counter,
             counter=keys.counter,
-            ciphertext=ciphertext,
+            ciphertext=b"",
             mac=b"",
         )
         message.mac = keys.compute_mac(
             message.header_bytes(),
             associated_data,
-            ciphertext,
+            plaintext,
             self.suite,
         )
+        message.ciphertext = keys.encrypt(plaintext, self.suite, message.mac)
         return message
 
     def decrypt(
@@ -179,14 +179,15 @@ class DoubleRatchet(Ratchet[DoubleRatchetMessage], Constructor):
             message.counter,
             message.previous_counter,
         )
+        plaintext = keys.decrypt(message.ciphertext, self.suite, message.mac)
         keys.verify_mac(
             message.header_bytes(),
             associated_data,
-            message.ciphertext,
+            plaintext,
             message.mac,
             self.suite,
         )
-        return keys.decrypt(message.ciphertext, self.suite)
+        return plaintext
 
     def take_send_keys(self) -> tuple[MessageKeys, bytes, int]:
         """Advance the sending chain; return keys, header, previous_counter."""

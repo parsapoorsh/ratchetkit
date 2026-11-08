@@ -82,7 +82,7 @@ class KdfLabel:
 
     X3DH = b"\x01"
     ROOT_CHAIN = b"\x02"  # root-key -> (root, chain) ratchet step
-    MESSAGE_KEYS = b"\x03"  # chain-key seed -> cipher/mac/iv
+    MESSAGE_KEYS = b"\x03"  # chain-key seed -> cipher/mac
     SPQR_INIT = b"\x04"  # Sparse PQ Ratchet chain start
     SPQR_EPOCH = b"\x05"  # Sparse PQ Ratchet add epoch
     TR_SPLIT = b"\x06"  # Triple Ratchet SK -> (SKec, SKscka)

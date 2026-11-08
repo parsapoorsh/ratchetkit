@@ -475,13 +475,13 @@ class SparsePostQuantumRatchet(Constructor):
     ) -> tuple[SpqrHeader, bytes, bytes]:
         """Return (header, ciphertext, mac)."""
         keys, header = self.send_key()
-        ciphertext = keys.encrypt(plaintext, self.suite)
         mac = keys.compute_mac(
             header.header_bytes(),
             associated_data,
-            ciphertext,
+            plaintext,
             self.suite,
         )
+        ciphertext = keys.encrypt(plaintext, self.suite, mac)
         return header, ciphertext, mac
 
     def decrypt(
@@ -504,14 +504,15 @@ class SparsePostQuantumRatchet(Constructor):
         associated_data: bytes = b"",
     ) -> bytes:
         keys = self.receive_key(header)
+        plaintext = keys.decrypt(ciphertext, self.suite, mac)
         keys.verify_mac(
             header.header_bytes(),
             associated_data,
-            ciphertext,
+            plaintext,
             mac,
             self.suite,
         )
-        return keys.decrypt(ciphertext, self.suite)
+        return plaintext
 
     def skip_in_epoch(
         self,

@@ -56,7 +56,7 @@ Algorithm ids are the permanent `IntEnum` values in `ratchetkit/suite/algs.py`.
 | 5 | CHACHA20 |
 
 Suites reject 128-bit ciphers (`AES128`, `CAMELLIA128`). Block ciphers
-run in CTR. Message authentication is encrypt-then-HMAC.
+run in CTR. The HMAC tag is the CTR / ChaCha nonce (SIV).
 
 ### KeyExchangeAlg
 
@@ -251,15 +251,17 @@ for DH suites, or length-prefixed KEM public + encapsulation CT.
 step (skip bookkeeping). `counter` is this message's chain index.
 
 Ciphertext is stream encryption (ChaCha20 or block cipher in CTR) under
-the per-message cipher key. MAC is HMAC of
+the per-message cipher key. HMAC is computed first over
 
 ```
-associated_data || header_bytes || ciphertext
+associated_data || header_bytes || plaintext
 ```
 
-truncated to `suite.tag_size` (default 16, min 10). Session AD is
-`initiator_signing_public || responder_signing_public`; extra per-message
-AD is appended.
+truncated to `suite.tag_size` (default 16, min 10). That tag is the CTR /
+ChaCha nonce (padded with zeros on the right if shorter than the nonce,
+or truncated on the left if longer). The tag is sent after the ciphertext.
+Session AD is `initiator_signing_public || responder_signing_public`; extra
+per-message AD is appended.
 
 ---
 
@@ -291,7 +293,7 @@ counter                     u32
 `header_bytes()` for the MAC is the concatenation of the two
 length-prefixed headers (`ec_header_len || ec_header || spqr_header_len || spqr_header`).
 MAC coverage is the same rule as Double Ratchet:
-`associated_data || header_bytes || ciphertext`.
+`associated_data || header_bytes || plaintext` (tag is the CTR nonce).
 
 ---
 
@@ -577,7 +579,6 @@ index                       u32
 ```
 cipher_key                  bytes32
 mac_key                     bytes32
-iv                          bytes32
 counter                     u32
 ```
 
@@ -637,7 +638,7 @@ Field lengths follow the suite. Common values:
 | ML-KEM-768 public | 1184 |
 | ML-KEM-768 ciphertext | 1088 |
 | AES-256 key / ChaCha20 key | 32 |
-| AES-256 CTR IV | 16 |
+| AES-256 CTR nonce (from tag) | 16 |
 | ChaCha20 nonce | 12 |
 | SHA-256 digest / HMAC | 32 |
 | MAC tag on the wire | `tag_size` (default 16) |

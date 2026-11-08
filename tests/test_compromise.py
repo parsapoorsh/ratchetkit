@@ -106,12 +106,13 @@ def decrypt_with_message_keys(
     suite: CryptoSuite,
     associated_data: bytes,
 ) -> bytes | None:
-    """Passive decrypt using a stolen message key (cipher + MAC check)."""
-    material = associated_data + message.header_bytes() + message.ciphertext
+    """Passive decrypt using a stolen message key (SIV + MAC check)."""
+    plaintext = keys.decrypt(message.ciphertext, suite, message.mac)
+    material = associated_data + message.header_bytes() + plaintext
     tag = Kdf(suite.digest).hmac_digest(keys.mac_key, material)[: suite.tag_size]
     if tag != message.mac:
         return None
-    return keys.decrypt(message.ciphertext, suite)
+    return plaintext
 
 
 def steal_sender_message_keys(
