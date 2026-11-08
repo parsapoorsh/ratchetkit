@@ -11,7 +11,6 @@ from ratchetkit.errors import (
     InvalidKey,
     InvalidMessage,
     InvalidSignature,
-    SerializationError,
     TooManySkippedKeys,
 )
 from ratchetkit.keys.identity import IdentityKeyPair
@@ -260,8 +259,10 @@ def test_initial_identity_algorithm_relabel_rejected():
 def test_ratchet_message_rejects_trailing_bytes(pair):
     kind, alice, bob, suite = pair
     msg = alice.encrypt(b"x")
-    with pytest.raises(SerializationError, match="trailing"):
-        parse_message(kind, msg.to_bytes() + b"TRAIL")
+    # Extra bytes sit in the ciphertext; MAC fails.
+    trailing = parse_message(kind, msg.to_bytes() + b"TRAIL", suite)
+    with pytest.raises(InvalidMessage):
+        bob.decrypt(trailing)
 
 
 def test_replay_still_rejected(pair):

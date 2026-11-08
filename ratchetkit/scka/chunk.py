@@ -9,12 +9,13 @@ from __future__ import annotations
 
 
 import math
-import struct
 
 from ratchetkit.errors import InvalidMessage, SerializationError
 from ratchetkit.packing import (
-    Constructor,
-    ConstructorId,
+    encode_u8,
+    encode_varint,
+    read_u8,
+    read_varint,
 )
 
 
@@ -51,10 +52,9 @@ class ChunkCodec:
         return blob[:payload_len]
 
 
-class ChunkFrame(Constructor):
+class ChunkFrame:
     """Wire format for one SCKA chunk (or ack-only) message body."""
 
-    CONSTRUCTOR_ID = ConstructorId.CHUNK_FRAME
     FLAG_PAYLOAD = 0x01
     FLAG_ACK_ONLY = 0x02
 
@@ -63,7 +63,6 @@ class ChunkFrame(Constructor):
         flags: int,
         key_epoch: int,
         chunk_index: int,
-        n_chunks: int,
         ack_count: int,
         payload_len: int,
         data: bytes,
@@ -71,53 +70,51 @@ class ChunkFrame(Constructor):
         self.flags = flags
         self.key_epoch = key_epoch
         self.chunk_index = chunk_index
-        self.n_chunks = n_chunks
         self.ack_count = ack_count
         self.payload_len = payload_len
         self.data = data
 
     def to_bytes(self) -> bytes:
-        if len(self.data) > 0xFFFF:
-            raise SerializationError("chunk data too large")
         return (
-            self.constructor_pack()
-            + bytes([self.flags & 0xFF])
-            + struct.pack(
-                ">IHHHH",
-                self.key_epoch & 0xFFFFFFFF,
-                self.chunk_index & 0xFFFF,
-                self.n_chunks & 0xFFFF,
-                self.ack_count & 0xFFFF,
-                self.payload_len & 0xFFFF,
-            )
-            + struct.pack(">H", len(self.data))
+            encode_u8(self.flags & 0xFF)
+            + encode_varint(self.key_epoch)
+            + encode_varint(self.chunk_index)
+            + encode_varint(self.ack_count)
+            + encode_varint(self.payload_len)
+            + encode_varint(len(self.data))
             + self.data
         )
 
     @classmethod
-    def from_bytes(cls, raw: bytes) -> ChunkFrame:
-        # constructor(4) + flags(1) + IHHHH(12) + data_len(2)
-        if len(raw) < 4 + 1 + 12 + 2:
-            raise SerializationError("truncated SCKA chunk frame")
-        offset = cls.constructor_expect(raw)
-        flags = raw[offset]
-        offset += 1
-        key_epoch, chunk_index, n_chunks, ack_count, payload_len = struct.unpack_from(
-            ">IHHHH",
-            raw,
-            offset,
-        )
-        offset += 12
-        data_len = struct.unpack_from(">H", raw, offset)[0]
-        offset += 2
-        if offset + data_len != len(raw):
-            raise SerializationError("SCKA chunk frame length mismatch")
-        return cls(
+    def read(
+        cls,
+        data: bytes | memoryview,
+        offset: int = 0,
+    ) -> tuple[ChunkFrame, int]:
+        flags, offset = read_u8(data, offset)
+        key_epoch, offset = read_varint(data, offset)
+        chunk_index, offset = read_varint(data, offset)
+        ack_count, offset = read_varint(data, offset)
+        payload_len, offset = read_varint(data, offset)
+        length, offset = read_varint(data, offset)
+        if offset + length > len(data):
+            raise SerializationError("truncated SCKA chunk data")
+        body = bytes(data[offset:offset + length])
+        frame = cls(
             flags=flags,
             key_epoch=key_epoch,
             chunk_index=chunk_index,
-            n_chunks=n_chunks,
             ack_count=ack_count,
             payload_len=payload_len,
-            data=raw[offset:offset + data_len],
+            data=body,
         )
+        return frame, offset + length
+
+    @classmethod
+    def from_bytes(cls, raw: bytes) -> ChunkFrame:
+        if not raw:
+            raise SerializationError("truncated SCKA chunk frame")
+        frame, offset = cls.read(raw, 0)
+        if offset != len(raw):
+            raise SerializationError("trailing bytes in SCKA chunk frame")
+        return frame

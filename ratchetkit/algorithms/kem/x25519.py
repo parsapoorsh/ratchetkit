@@ -19,6 +19,7 @@ from ratchetkit.suite.algs import KeyExchangeAlg
 class X25519(KemBackend):
     algorithm = KeyExchangeAlg.X25519
     supports_dh = True
+    public_size = 32
 
     def generate_keypair(self) -> KeyPair:
         raw = x25519.X25519PrivateKey.generate()

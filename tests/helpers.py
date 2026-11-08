@@ -273,5 +273,5 @@ def message_type_for(kind: str):
     return DoubleRatchetMessage
 
 
-def parse_message(kind: str, data: bytes) -> RatchetMessage:
-    return message_type_for(kind).from_bytes(data)
+def parse_message(kind: str, data: bytes, suite) -> RatchetMessage:
+    return message_type_for(kind).from_bytes(data, suite)

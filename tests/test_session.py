@@ -36,7 +36,7 @@ def test_ratchet_message_bytes_roundtrip(pair):
         bundle = suite.create_bundle(bob_id, spk, pq, opk)
         alice, initial = Session.initiate(alice_id, bundle)
         first = alice.encrypt(b"wire")
-        restored = type(first).from_bytes(first.to_bytes())
+        restored = type(first).from_bytes(first.to_bytes(), suite)
         bob, plain = Session.accept(
             bob_id,
             spk,
@@ -49,7 +49,7 @@ def test_ratchet_message_bytes_roundtrip(pair):
         bundle = suite.create_bundle(bob_id, spk, opk)
         alice, initial = Session.initiate(alice_id, bundle)
         first = alice.encrypt(b"wire")
-        restored = type(first).from_bytes(first.to_bytes())
+        restored = type(first).from_bytes(first.to_bytes(), suite)
         bob, plain = Session.accept(bob_id, spk, initial, restored, opk)
     assert plain == b"wire"
 

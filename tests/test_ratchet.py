@@ -78,5 +78,5 @@ def test_wrong_mac_rejected(pair):
 def test_message_bytes_roundtrip(pair):
     kind, alice, bob, suite = pair
     m = alice.encrypt(b"wire")
-    restored = type(m).from_bytes(m.to_bytes())
+    restored = type(m).from_bytes(m.to_bytes(), suite)
     assert bob.decrypt(restored) == b"wire"

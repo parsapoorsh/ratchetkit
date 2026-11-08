@@ -57,7 +57,7 @@ def main() -> None:
             f"({describe_session(session)})"
         )
 
-        reply_msg = Message.from_bytes(link.expect(Message.CONSTRUCTOR_ID))
+        reply_msg = Message.from_bytes(link.recv(), suite)
         reply = session.decrypt(reply_msg)
         print(
             f"[alice] <- {reply!r}  "
@@ -76,7 +76,7 @@ def main() -> None:
                 f"({describe_session(session)})"
             )
 
-        reply_msg = Message.from_bytes(link.expect(Message.CONSTRUCTOR_ID))
+        reply_msg = Message.from_bytes(link.recv(), suite)
         reply = session.decrypt(reply_msg)
         print(
             f"[alice] <- {reply!r}  "
@@ -96,7 +96,7 @@ def main() -> None:
             f"({describe_session(session)})"
         )
 
-        reply_msg = Message.from_bytes(link.expect(Message.CONSTRUCTOR_ID))
+        reply_msg = Message.from_bytes(link.recv(), suite)
         reply = session.decrypt(reply_msg)
         print(
             f"[alice] <- {reply!r}  "

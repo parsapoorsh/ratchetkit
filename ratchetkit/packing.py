@@ -17,9 +17,6 @@ class ConstructorId(IntEnum):
     PREKEY_BUNDLE = 0x524B0010
     INITIAL_MESSAGE_X3DH = 0x524B0011
     INITIAL_MESSAGE_PQXDH = 0x524B0015
-    DOUBLE_RATCHET_MESSAGE = 0x524B0012
-    TRIPLE_RATCHET_MESSAGE = 0x524B0013
-    CHUNK_FRAME = 0x524B0014
     SESSION = 0x524B0020
     SUITE_DOUBLE = 0x524B0021
     SUITE_TRIPLE = 0x524B0022
@@ -119,6 +116,21 @@ def read_bytes16(
     return bytes(data[offset:offset + length]), offset + length
 
 
+def encode_u16(value: int) -> bytes:
+    if value < 0 or value > 0xFFFF:
+        raise SerializationError("u16 out of range")
+    return struct.pack(">H", value)
+
+
+def read_u16(
+    data: bytes | memoryview,
+    offset: int,
+) -> tuple[int, int]:
+    if offset + 2 > len(data):
+        raise SerializationError("truncated u16")
+    return struct.unpack_from(">H", data, offset)[0], offset + 2
+
+
 def encode_u32(value: int) -> bytes:
     if value < 0 or value > 0xFFFFFFFF:
         raise SerializationError("u32 out of range")
@@ -132,6 +144,36 @@ def read_u32(
     if offset + 4 > len(data):
         raise SerializationError("truncated u32")
     return struct.unpack_from(">I", data, offset)[0], offset + 4
+
+
+def encode_varint(value: int) -> bytes:
+    """Unsigned LEB128. Counters and small lengths on protocol packets."""
+    if value < 0:
+        raise SerializationError("varint out of range")
+    out = bytearray()
+    while value > 0x7F:
+        out.append((value & 0x7F) | 0x80)
+        value >>= 7
+    out.append(value)
+    return bytes(out)
+
+
+def read_varint(
+    data: bytes | memoryview,
+    offset: int,
+) -> tuple[int, int]:
+    value = 0
+    shift = 0
+    for _ in range(10):
+        if offset >= len(data):
+            raise SerializationError("truncated varint")
+        byte = int(data[offset])
+        offset += 1
+        value |= (byte & 0x7F) << shift
+        if byte < 0x80:
+            return value, offset
+        shift += 7
+    raise SerializationError("varint too long")
 
 
 def encode_u8(value: int) -> bytes:

@@ -15,6 +15,8 @@ class KemBackend(ABC):
 
     algorithm: KeyExchangeAlg
     supports_dh: bool = False
+    # 0 means variable-length (RSA / length-prefixed KEM headers).
+    public_size: int = 0
 
     @abstractmethod
     def generate_keypair(self) -> KeyPair:

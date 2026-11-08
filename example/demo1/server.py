@@ -46,7 +46,7 @@ def main() -> None:
         initial = InitialMessage.from_bytes(
             link.expect(InitialMessage.CONSTRUCTOR_ID),
         )
-        first = Message.from_bytes(link.expect(Message.CONSTRUCTOR_ID))
+        first = Message.from_bytes(link.recv(), suite)
         session, plain = Session.accept(
             bob,
             spk,
@@ -72,7 +72,7 @@ def main() -> None:
         )
 
         # --- 3. Alice sent two in a row: counters 0 and 1, same chain ---
-        message = Message.from_bytes(link.expect(Message.CONSTRUCTOR_ID))
+        message = Message.from_bytes(link.recv(), suite)
         plain = session.decrypt(message)
         print(
             f"[bob]   <- {plain!r}  "
@@ -80,7 +80,7 @@ def main() -> None:
             f"({describe_session(session)})"
         )
 
-        message = Message.from_bytes(link.expect(Message.CONSTRUCTOR_ID))
+        message = Message.from_bytes(link.recv(), suite)
         plain = session.decrypt(message)
         print(
             f"[bob]   <- {plain!r}  "
@@ -98,7 +98,7 @@ def main() -> None:
         )
 
         # --- 4. one more round-trip (Alice bound this message with AD) ---
-        message = Message.from_bytes(link.expect(Message.CONSTRUCTOR_ID))
+        message = Message.from_bytes(link.recv(), suite)
         ad = b"msg-id:thanks"
         plain = session.decrypt(message, associated_data=ad)
         print(

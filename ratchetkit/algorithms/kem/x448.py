@@ -19,6 +19,7 @@ from ratchetkit.suite.algs import KeyExchangeAlg
 class X448(KemBackend):
     algorithm = KeyExchangeAlg.X448
     supports_dh = True
+    public_size = 56
 
     def generate_keypair(self) -> KeyPair:
         raw = x448.X448PrivateKey.generate()

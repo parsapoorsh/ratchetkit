@@ -22,20 +22,28 @@ class RatchetHeader:
         )
 
     @staticmethod
-    def decode_kem(data: bytes) -> tuple[bytes, bytes]:
-        if len(data) < 4:
+    def read_kem(
+        data: bytes | memoryview,
+        offset: int = 0,
+    ) -> tuple[bytes, bytes, int]:
+        if offset + 4 > len(data):
             raise SerializationError("truncated KEM header")
-        pub_len = struct.unpack_from(">H", data, 0)[0]
-        offset = 2
+        pub_len = struct.unpack_from(">H", data, offset)[0]
+        offset += 2
         if offset + pub_len + 2 > len(data):
             raise SerializationError("truncated KEM header public")
-        public = data[offset:offset + pub_len]
+        public = bytes(data[offset:offset + pub_len])
         offset += pub_len
         ct_len = struct.unpack_from(">H", data, offset)[0]
         offset += 2
         if offset + ct_len > len(data):
             raise SerializationError("truncated KEM header ciphertext")
-        ciphertext = data[offset:offset + ct_len]
+        ciphertext = bytes(data[offset:offset + ct_len])
+        return public, ciphertext, offset + ct_len
+
+    @staticmethod
+    def decode_kem(data: bytes) -> tuple[bytes, bytes]:
+        public, ciphertext, _offset = RatchetHeader.read_kem(data, 0)
         return public, ciphertext
 
     @staticmethod

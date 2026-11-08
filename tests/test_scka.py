@@ -18,7 +18,6 @@ def test_chunk_frame_roundtrip():
         flags=ChunkFrame.FLAG_PAYLOAD,
         key_epoch=3,
         chunk_index=1,
-        n_chunks=8,
         ack_count=2,
         payload_len=100,
         data=b"chunk-bytes",

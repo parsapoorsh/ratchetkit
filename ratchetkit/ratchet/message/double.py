@@ -2,21 +2,20 @@
 from __future__ import annotations
 
 
-import struct
 from dataclasses import dataclass
+from typing import TYPE_CHECKING
 
 from ratchetkit.errors import SerializationError
-from ratchetkit.packing import (
-    Constructor,
-    ConstructorId,
-    encode_bytes16,
-    read_bytes16,
-)
+from ratchetkit.packing import encode_varint, read_varint
+from ratchetkit.ratchet.header import RatchetHeader
 from ratchetkit.ratchet.message.base import RatchetMessage
+
+if TYPE_CHECKING:
+    from ratchetkit.suite.double import CryptoSuiteDoubleRatchet as CryptoSuite
 
 
 @dataclass
-class DoubleRatchetMessage(RatchetMessage, Constructor):
+class DoubleRatchetMessage(RatchetMessage):
     """Double Ratchet ciphertext with header and MAC tag."""
 
     ratchet_public: bytes
@@ -25,42 +24,52 @@ class DoubleRatchetMessage(RatchetMessage, Constructor):
     ciphertext: bytes
     mac: bytes
 
-    CONSTRUCTOR_ID = ConstructorId.DOUBLE_RATCHET_MESSAGE
-
     def header_bytes(self) -> bytes:
         return (
-            encode_bytes16(self.ratchet_public)
-            + struct.pack(">II", self.previous_counter, self.counter)
+            self.ratchet_public
+            + encode_varint(self.previous_counter)
+            + encode_varint(self.counter)
         )
 
     def to_bytes(self) -> bytes:
-        return (
-            self.constructor_pack()
-            + self.header_bytes()
-            + encode_bytes16(self.ciphertext)
-            + encode_bytes16(self.mac)
-        )
+        return self.header_bytes() + self.ciphertext + self.mac
 
     @classmethod
-    def from_bytes(cls, data: bytes) -> DoubleRatchetMessage:
-        view = memoryview(data)
-        if not view:
-            raise SerializationError("empty ratchet message")
-        offset = cls.constructor_expect(view)
-
-        ratchet_public, offset = read_bytes16(view, offset)
-        if offset + 8 > len(view):
-            raise SerializationError("truncated ratchet message counters")
-        previous_counter, counter = struct.unpack_from(">II", view, offset)
-        offset += 8
-        ciphertext, offset = read_bytes16(view, offset)
-        mac, offset = read_bytes16(view, offset)
-        if offset != len(view):
-            raise SerializationError("trailing bytes in ratchet message")
+    def read_header(
+        cls,
+        data: bytes | memoryview,
+        offset: int,
+        suite: CryptoSuite,
+    ) -> tuple[DoubleRatchetMessage, int]:
+        kem = suite.kem
+        if kem.supports_dh:
+            size = kem.public_size
+            if size < 1 or offset + size > len(data):
+                raise SerializationError("truncated ratchet public")
+            ratchet_public = bytes(data[offset:offset + size])
+            offset += size
+        else:
+            start = offset
+            _public, _ct, offset = RatchetHeader.read_kem(data, offset)
+            ratchet_public = bytes(data[start:offset])
+        previous_counter, offset = read_varint(data, offset)
+        counter, offset = read_varint(data, offset)
         return cls(
             ratchet_public=ratchet_public,
             previous_counter=previous_counter,
             counter=counter,
-            ciphertext=ciphertext,
-            mac=mac,
-        )
+            ciphertext=b"",
+            mac=b"",
+        ), offset
+
+    @classmethod
+    def from_bytes(cls, data: bytes, suite: CryptoSuite) -> DoubleRatchetMessage:
+        if not data:
+            raise SerializationError("empty ratchet message")
+        message, offset = cls.read_header(data, 0, suite)
+        tag_size = suite.tag_size
+        if offset + tag_size > len(data):
+            raise SerializationError("truncated ratchet message tag")
+        message.mac = bytes(data[len(data) - tag_size:])
+        message.ciphertext = bytes(data[offset:len(data) - tag_size])
+        return message

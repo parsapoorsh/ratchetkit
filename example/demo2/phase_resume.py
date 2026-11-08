@@ -49,7 +49,7 @@ def main() -> int:
     )
     for index in order:
         raw = mailbox_get(f"msg_{index}.bin")
-        message = Message.from_bytes(raw)
+        message = Message.from_bytes(raw, suite)
         plain = bob.decrypt(message)
         if plain != expected[index]:
             print(

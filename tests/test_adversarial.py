@@ -259,13 +259,16 @@ def test_wire_trailing_bytes_and_corrupt_serialize(pair):
     kind, alice, bob, suite = pair
     msg = alice.encrypt(b"wire")
     raw = msg.to_bytes()
-    with pytest.raises(SerializationError):
-        parse_message(kind, raw + b"X")
+    extra = parse_message(kind, raw + b"X", suite)
+    before = snap_state(bob)
+    with pytest.raises(InvalidMessage):
+        bob.decrypt(extra)
+    assert snap_state(bob) == before
     flipped = bytearray(raw)
     flipped[len(flipped) // 2] ^= 0xFF
     # May fail parse or MAC; either way must not accept as plaintext.
     try:
-        bad = parse_message(kind, bytes(flipped))
+        bad = parse_message(kind, bytes(flipped), suite)
     except SerializationError:
         return
     before = snap_state(bob)

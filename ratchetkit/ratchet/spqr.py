@@ -4,7 +4,6 @@ from __future__ import annotations
 from ratchetkit.suite.registry import hash_backend
 
 
-import struct
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
@@ -25,12 +24,15 @@ from ratchetkit.packing import (
     encode_bytes,
     encode_u32,
     encode_u8,
+    encode_varint,
     read_bool,
     read_bytes,
     read_u32,
     read_u8,
+    read_varint,
 )
 from ratchetkit.ratchet.limits import RatchetLimits
+from ratchetkit.scka.chunk import ChunkFrame
 from ratchetkit.scka.kem_scka import ChunkedKemScka
 from ratchetkit.suite import KdfLabel
 
@@ -101,43 +103,42 @@ class SpqrHeader:
     previous2_counter: int = 0
 
     def to_bytes(self) -> bytes:
-        if len(self.scka_msg) > 0xFFFF:
-            raise InvalidMessage("SCKA header too large")
         return (
-            struct.pack(">H", len(self.scka_msg))
+            encode_varint(self.t_s)
+            + encode_varint(self.previous2_counter)
+            + encode_varint(self.previous_counter)
+            + encode_varint(self.counter)
             + self.scka_msg
-            + struct.pack(
-                ">IIII",
-                self.t_s & 0xFFFFFFFF,
-                self.previous2_counter & 0xFFFFFFFF,
-                self.previous_counter & 0xFFFFFFFF,
-                self.counter & 0xFFFFFFFF,
-            )
         )
 
     @classmethod
-    def from_bytes(cls, data: bytes) -> SpqrHeader:
-        # len(2) + body + t_s/prev2/prev/counter (16)
-        if len(data) < 2 + 16:
-            raise InvalidMessage("truncated SPQR header")
-        length = struct.unpack_from(">H", data, 0)[0]
-        offset = 2
-        if offset + length + 16 > len(data):
-            raise InvalidMessage("truncated SPQR header body")
-        scka_msg = data[offset:offset + length]
-        offset += length
-        t_s, previous2_counter, previous_counter, counter = struct.unpack_from(
-            ">IIII",
-            data,
-            offset,
-        )
+    def read(
+        cls,
+        data: bytes | memoryview,
+        offset: int = 0,
+    ) -> tuple[SpqrHeader, int]:
+        t_s, offset = read_varint(data, offset)
+        previous2_counter, offset = read_varint(data, offset)
+        previous_counter, offset = read_varint(data, offset)
+        counter, offset = read_varint(data, offset)
+        start = offset
+        _frame, offset = ChunkFrame.read(data, offset)
         return cls(
-            scka_msg=scka_msg,
+            scka_msg=bytes(data[start:offset]),
             counter=counter,
             t_s=t_s,
             previous_counter=previous_counter,
             previous2_counter=previous2_counter,
-        )
+        ), offset
+
+    @classmethod
+    def from_bytes(cls, data: bytes) -> SpqrHeader:
+        if not data:
+            raise InvalidMessage("truncated SPQR header")
+        header, offset = cls.read(data, 0)
+        if offset != len(data):
+            raise InvalidMessage("trailing bytes in SPQR header")
+        return header
 
     def header_bytes(self) -> bytes:
         return self.to_bytes()

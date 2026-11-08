@@ -85,7 +85,7 @@ def test_triple_forged_mac_does_not_desync():
 def test_triple_message_bytes_roundtrip():
     alice, bob = setup_triple(n_chunks=2)[:2]
     m = alice.encrypt(b"wire")
-    restored = TripleRatchetMessage.from_bytes(m.to_bytes())
+    restored = TripleRatchetMessage.from_bytes(m.to_bytes(), alice.suite)
     assert bob.decrypt(restored) == b"wire"
 
 

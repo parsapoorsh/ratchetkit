@@ -162,7 +162,6 @@ class ChunkedKemScka(Constructor):
             flags=ChunkFrame.FLAG_PAYLOAD,
             key_epoch=self.send_key_epoch,
             chunk_index=index,
-            n_chunks=self.n_chunks,
             ack_count=len(self.recv_chunks),
             payload_len=self.send_payload_len,
             data=self.send_chunks[index],
@@ -200,8 +199,6 @@ class ChunkedKemScka(Constructor):
 
         if not (frame.flags & ChunkFrame.FLAG_PAYLOAD):
             raise InvalidMessage("SCKA frame missing payload flag")
-        if frame.n_chunks != self.n_chunks:
-            raise InvalidMessage("SCKA n_chunks mismatch")
 
         if frame.key_epoch < self.recv_key_epoch:
             return SckaRecvResult(
@@ -294,7 +291,6 @@ class ChunkedKemScka(Constructor):
             flags=ChunkFrame.FLAG_ACK_ONLY,
             key_epoch=self.epoch,
             chunk_index=0,
-            n_chunks=self.n_chunks,
             ack_count=len(self.recv_chunks),
             payload_len=0,
             data=b"",

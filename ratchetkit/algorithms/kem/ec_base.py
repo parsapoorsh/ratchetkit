@@ -22,6 +22,10 @@ class EcKem(KemBackend):
     curve: ec.EllipticCurve
     supports_dh = True
 
+    @property
+    def public_size(self) -> int:
+        return 1 + 2 * ((self.curve.key_size + 7) // 8)
+
     def generate_keypair(self) -> KeyPair:
         raw = ec.generate_private_key(self.curve)
         byte_length = (self.curve.key_size + 7) // 8
