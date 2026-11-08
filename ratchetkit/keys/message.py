@@ -1,14 +1,13 @@
 """Per-message cipher / MAC / IV material."""
 from __future__ import annotations
 
-from ratchetkit.suite.registry import cipher_backend, hash_backend
-
-
+import hmac
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
-from ratchetkit.errors import SerializationError
+from ratchetkit.errors import InvalidMessage, SerializationError
 from ratchetkit.kdf import Kdf
+from ratchetkit.suite.registry import cipher_backend, hash_backend
 from ratchetkit.packing import (
     encode_bytes,
     encode_u32,
@@ -64,6 +63,29 @@ class MessageKeys:
 
     def decrypt(self, ciphertext: bytes, suite: CryptoSuite) -> bytes:
         return cipher_backend(suite.cipher).decrypt(self.cipher_key, self.iv, ciphertext)
+
+    def compute_mac(
+        self,
+        header: bytes,
+        associated_data: bytes,
+        ciphertext: bytes,
+        suite: CryptoSuite,
+    ) -> bytes:
+        material = associated_data + header + ciphertext
+        tag = Kdf(suite.digest).hmac_digest(self.mac_key, material)
+        return tag[: suite.tag_size]
+
+    def verify_mac(
+        self,
+        header: bytes,
+        associated_data: bytes,
+        ciphertext: bytes,
+        mac: bytes,
+        suite: CryptoSuite,
+    ) -> None:
+        expected = self.compute_mac(header, associated_data, ciphertext, suite)
+        if not hmac.compare_digest(expected, mac):
+            raise InvalidMessage("MAC verification failed")
 
     def to_bytes(self) -> bytes:
         return (

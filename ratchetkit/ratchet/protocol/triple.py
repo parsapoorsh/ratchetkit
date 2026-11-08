@@ -1,13 +1,10 @@
 """Triple Ratchet: classical Double Ratchet + Sparse PQ Ratchet (DR §6)."""
 from __future__ import annotations
 
-from ratchetkit.suite.registry import hash_backend
 
-
-import hmac
 from typing import TYPE_CHECKING
 
-from ratchetkit.errors import DuplicateMessage, InvalidKey, InvalidMessage, SerializationError
+from ratchetkit.errors import SerializationError
 from ratchetkit.kdf import Kdf
 from ratchetkit.keys.keypair import KeyPair, PublicKey
 from ratchetkit.keys.message import MessageKeys
@@ -17,13 +14,13 @@ from ratchetkit.packing import (
     encode_bytes,
     read_bytes,
 )
-from ratchetkit.ratchet.header import RatchetHeader
 from ratchetkit.ratchet.limits import RatchetLimits
 from ratchetkit.ratchet.message import DoubleRatchetMessage, TripleRatchetMessage
 from ratchetkit.ratchet.protocol.base import Ratchet
 from ratchetkit.ratchet.protocol.double import DoubleRatchet
 from ratchetkit.ratchet.spqr import SparsePostQuantumRatchet
 from ratchetkit.suite import KdfLabel
+from ratchetkit.suite.registry import hash_backend
 
 if TYPE_CHECKING:
     from ratchetkit.algorithms.kem.base import KemBackend
@@ -140,17 +137,10 @@ class TripleRatchet(Ratchet[TripleRatchetMessage], Constructor):
         plaintext: bytes,
         associated_data: bytes = b"",
     ) -> TripleRatchetMessage:
-        ec = self.ec
-        if ec.sender_chain is None:
-            ec.ensure_sender_chain()
-        assert ec.sender_chain is not None
-        assert ec.sender_header is not None
-        chain = ec.sender_chain.chain_key
-        ec_keys = chain.message_keys()
-        ec.sender_chain.chain_key = chain.next_chain_key()
+        ec_keys, header, previous_counter = self.ec.take_send_keys()
         ec_header = DoubleRatchetMessage(
-            ratchet_public=ec.sender_header,
-            previous_counter=ec.previous_counter,
+            ratchet_public=header,
+            previous_counter=previous_counter,
             counter=ec_keys.counter,
             ciphertext=b"",
             mac=b"",
@@ -166,11 +156,11 @@ class TripleRatchet(Ratchet[TripleRatchetMessage], Constructor):
             ciphertext=ciphertext,
             mac=b"",
         )
-        message.mac = self.compute_mac(
-            hybrid,
+        message.mac = hybrid.compute_mac(
             message.header_bytes(),
             associated_data,
             ciphertext,
+            self.suite,
         )
         return message
 
@@ -190,76 +180,22 @@ class TripleRatchet(Ratchet[TripleRatchetMessage], Constructor):
         associated_data: bytes = b"",
     ) -> bytes:
         ec_message = message.ec_message
-        try:
-            chain_id = RatchetHeader.chain_id(
-                ec_message.ratchet_public,
-                is_kem=not self.ec.suite.kem.supports_dh,
-            )
-        except Exception as exc:
-            raise InvalidMessage("malformed ratchet header") from exc
-
-        skipped = self.ec.skipped.peek(chain_id, ec_message.counter)
-        if skipped is not None:
-            self.ec.skipped.take(chain_id, ec_message.counter)
-            ec_keys = skipped
-        else:
-            chain = self.ec.find_receiver_chain(chain_id)
-            if chain is None:
-                try:
-                    chain = self.ec.ratchet_step(
-                        ec_message.ratchet_public,
-                        ec_message.previous_counter,
-                    )
-                except InvalidKey as exc:
-                    raise InvalidMessage(
-                        "ratchet step rejected remote key material"
-                    ) from exc
-
-            if ec_message.counter < chain.chain_key.index:
-                raise DuplicateMessage(chain.chain_key.index, ec_message.counter)
-
-            chain.chain_key = self.ec.skipped.skip_in_chain(
-                chain_id,
-                chain.chain_key,
-                ec_message.counter,
-            )
-            ec_keys = chain.chain_key.message_keys()
-            chain.chain_key = chain.chain_key.next_chain_key()
-
+        ec_keys = self.ec.take_keys(
+            ec_message.ratchet_public,
+            ec_message.counter,
+            ec_message.previous_counter,
+        )
         pq_keys = self.spqr.receive_key(message.spqr_header)
         seed = self.hybrid_message_key(ec_keys.cipher_key, pq_keys.cipher_key)
         hybrid = MessageKeys.derive(seed, ec_keys.counter, self.suite)
-        self.verify_mac(
-            hybrid,
+        hybrid.verify_mac(
             message.header_bytes(),
             associated_data,
             message.ciphertext,
             message.mac,
+            self.suite,
         )
         return hybrid.decrypt(message.ciphertext, self.suite)
-
-    def compute_mac(
-        self,
-        keys: MessageKeys,
-        header: bytes,
-        associated_data: bytes,
-        ciphertext: bytes,
-    ) -> bytes:
-        material = associated_data + header + ciphertext
-        tag = self.kdf.hmac_digest(keys.mac_key, material)
-        return tag[: self.suite.tag_size]
-
-    def verify_mac(
-        self,
-        keys: MessageKeys,
-        header: bytes,
-        associated_data: bytes,
-        ciphertext: bytes,
-        mac: bytes,
-    ) -> None:
-        expected = self.compute_mac(keys, header, associated_data, ciphertext)
-        if not hmac.compare_digest(expected, mac):
-            raise InvalidMessage("Triple Ratchet MAC verification failed")
 
     def clone(self) -> TripleRatchet:
         """Trial-decrypt copy via ``__init__`` (no deepcopy)."""

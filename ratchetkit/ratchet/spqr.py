@@ -4,7 +4,6 @@ from __future__ import annotations
 from ratchetkit.suite.registry import hash_backend
 
 
-import hmac
 import struct
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
@@ -477,11 +476,11 @@ class SparsePostQuantumRatchet(Constructor):
         """Return (header, ciphertext, mac)."""
         keys, header = self.send_key()
         ciphertext = keys.encrypt(plaintext, self.suite)
-        mac = self.compute_mac(
-            keys,
+        mac = keys.compute_mac(
             header.header_bytes(),
             associated_data,
             ciphertext,
+            self.suite,
         )
         return header, ciphertext, mac
 
@@ -505,7 +504,13 @@ class SparsePostQuantumRatchet(Constructor):
         associated_data: bytes = b"",
     ) -> bytes:
         keys = self.receive_key(header)
-        self.verify_mac(keys, header, ciphertext, mac, associated_data)
+        keys.verify_mac(
+            header.header_bytes(),
+            associated_data,
+            ciphertext,
+            mac,
+            self.suite,
+        )
         return keys.decrypt(ciphertext, self.suite)
 
     def skip_in_epoch(
@@ -534,34 +539,6 @@ class SparsePostQuantumRatchet(Constructor):
             raise TooManySkippedKeys(len(self.skipped) + 1, self.limits.MAX_MESSAGE_KEYS)
         self.skipped[key] = keys
         self.skipped_order.append(key)
-
-    def compute_mac(
-        self,
-        keys: MessageKeys,
-        header: bytes,
-        associated_data: bytes,
-        ciphertext: bytes,
-    ) -> bytes:
-        material = associated_data + header + ciphertext
-        tag = self.kdf.hmac_digest(keys.mac_key, material)
-        return tag[: self.suite.tag_size]
-
-    def verify_mac(
-        self,
-        keys: MessageKeys,
-        header: SpqrHeader,
-        ciphertext: bytes,
-        mac: bytes,
-        associated_data: bytes,
-    ) -> None:
-        expected = self.compute_mac(
-            keys,
-            header.header_bytes(),
-            associated_data,
-            ciphertext,
-        )
-        if not hmac.compare_digest(expected, mac):
-            raise InvalidMessage("SPQR MAC verification failed")
 
     def clone(self) -> SparsePostQuantumRatchet:
         """Trial-decrypt copy via ``__init__`` (no deepcopy)."""
