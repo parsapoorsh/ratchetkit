@@ -2,17 +2,13 @@
 from __future__ import annotations
 
 
-from typing import TYPE_CHECKING
-
 from cryptography.hazmat.primitives.asymmetric import ec
 from cryptography.hazmat.primitives.serialization import Encoding, PublicFormat
 
 from ratchetkit.errors import InvalidKey
 from ratchetkit.algorithms.kem.base import KemBackend
 from ratchetkit.keys.keypair import KeyPair, PublicKey
-
-if TYPE_CHECKING:
-    from ratchetkit.suite.algs import KeyExchangeAlg
+from ratchetkit.suite.algs import KeyExchangeAlg
 
 
 class EcKem(KemBackend):
@@ -73,3 +69,18 @@ class EcKem(KemBackend):
                 f"{self.algorithm.name} ECDH produced an all-zero shared secret"
             )
         return shared
+
+
+class Secp256r1(EcKem):
+    algorithm = KeyExchangeAlg.SECP256R1
+    curve = ec.SECP256R1()
+
+
+class Secp384r1(EcKem):
+    algorithm = KeyExchangeAlg.SECP384R1
+    curve = ec.SECP384R1()
+
+
+class Secp521r1(EcKem):
+    algorithm = KeyExchangeAlg.SECP521R1
+    curve = ec.SECP521R1()

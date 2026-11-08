@@ -2,14 +2,14 @@
 from __future__ import annotations
 
 
-from typing import TYPE_CHECKING, Any
+from typing import Any
+
+from cryptography.hazmat.primitives.asymmetric import mlkem
 
 from ratchetkit.errors import InvalidKey
 from ratchetkit.algorithms.kem.base import KemBackend
 from ratchetkit.keys.keypair import KeyPair, PublicKey
-
-if TYPE_CHECKING:
-    from ratchetkit.suite.algs import KeyExchangeAlg
+from ratchetkit.suite.algs import KeyExchangeAlg
 
 
 class MlkemBackend(KemBackend):
@@ -49,3 +49,15 @@ class MlkemBackend(KemBackend):
             raise InvalidKey(
                 f"{self.algorithm.name} decapsulation failed"
             ) from exc
+
+
+class Mlkem768(MlkemBackend):
+    algorithm = KeyExchangeAlg.MLKEM768
+    kem_private_cls = mlkem.MLKEM768PrivateKey
+    kem_public_cls = mlkem.MLKEM768PublicKey
+
+
+class Mlkem1024(MlkemBackend):
+    algorithm = KeyExchangeAlg.MLKEM1024
+    kem_private_cls = mlkem.MLKEM1024PrivateKey
+    kem_public_cls = mlkem.MLKEM1024PublicKey

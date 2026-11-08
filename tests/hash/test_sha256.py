@@ -1,6 +1,6 @@
 """Sha256 algorithm smoke test."""
 
-from ratchetkit.algorithms.hash.sha256 import Sha256
+from ratchetkit.algorithms.hash.base import Sha256
 
 
 def test_sha256_digest():

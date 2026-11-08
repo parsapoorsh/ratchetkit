@@ -5,7 +5,12 @@ from __future__ import annotations
 from abc import ABC
 from typing import Any
 
-from cryptography.hazmat.primitives.ciphers import Cipher, modes
+from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
+
+try:
+    from cryptography.hazmat.decrepit.ciphers.algorithms import Camellia
+except ImportError:  # pragma: no cover - older cryptography
+    from cryptography.hazmat.primitives.ciphers.algorithms import Camellia
 
 
 class CipherAlgorithm(ABC):
@@ -52,3 +57,35 @@ class CipherAlgorithm(ABC):
         cipher = Cipher(cls.algorithm(key), modes.CTR(iv))
         decryptor = cipher.decryptor()
         return decryptor.update(ciphertext) + decryptor.finalize()
+
+
+class Aes128(CipherAlgorithm):
+    name = "aes128"
+    key_size = 16
+    block_size = 16
+    nonce_size = 16
+    algorithm = algorithms.AES
+
+
+class Aes256(CipherAlgorithm):
+    name = "aes256"
+    key_size = 32
+    block_size = 16
+    nonce_size = 16
+    algorithm = algorithms.AES
+
+
+class Camellia128(CipherAlgorithm):
+    name = "camellia128"
+    key_size = 16
+    block_size = 16
+    nonce_size = 16
+    algorithm = Camellia
+
+
+class Camellia256(CipherAlgorithm):
+    name = "camellia256"
+    key_size = 32
+    block_size = 16
+    nonce_size = 16
+    algorithm = Camellia

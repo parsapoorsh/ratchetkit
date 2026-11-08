@@ -5,11 +5,7 @@ from __future__ import annotations
 
 import pytest
 
-from ratchetkit.algorithms.hash.blake2b import Blake2b
-from ratchetkit.algorithms.hash.sha256 import Sha256
-from ratchetkit.algorithms.hash.sha3256 import Sha3256
-from ratchetkit.algorithms.hash.sha384 import Sha384
-from ratchetkit.algorithms.hash.sha512 import Sha512
+from ratchetkit.algorithms.hash.base import Blake2b, Sha256, Sha3256, Sha384, Sha512
 from ratchetkit.kdf import Kdf
 from ratchetkit.suite import HashAlg
 from ratchetkit.suite.registry import HASH

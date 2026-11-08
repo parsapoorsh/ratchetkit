@@ -3,15 +3,10 @@ from __future__ import annotations
 
 import pytest
 
-from ratchetkit.algorithms.hash.sha256 import Sha256
-from ratchetkit.algorithms.kem.mlkem1024 import Mlkem1024
-from ratchetkit.algorithms.kem.mlkem768 import Mlkem768
-from ratchetkit.algorithms.kem.rsa2048 import Rsa2048
-from ratchetkit.algorithms.kem.rsa3072 import Rsa3072
-from ratchetkit.algorithms.kem.rsa4096 import Rsa4096
-from ratchetkit.algorithms.kem.secp256r1 import Secp256r1
-from ratchetkit.algorithms.kem.secp384r1 import Secp384r1
-from ratchetkit.algorithms.kem.secp521r1 import Secp521r1
+from ratchetkit.algorithms.hash.base import Sha256
+from ratchetkit.algorithms.kem.ec_base import Secp256r1, Secp384r1, Secp521r1
+from ratchetkit.algorithms.kem.mlkem_base import Mlkem1024, Mlkem768
+from ratchetkit.algorithms.kem.rsa_base import Rsa2048, Rsa3072, Rsa4096
 from ratchetkit.algorithms.kem.x25519 import X25519
 from ratchetkit.algorithms.kem.x448 import X448
 from ratchetkit.algorithms.signing.ed25519 import Ed25519

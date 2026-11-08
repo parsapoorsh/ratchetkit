@@ -3,8 +3,6 @@ from __future__ import annotations
 
 
 import os
-from typing import TYPE_CHECKING
-
 from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.primitives.asymmetric import padding, rsa
 from cryptography.hazmat.primitives.serialization import (
@@ -17,9 +15,7 @@ from cryptography.hazmat.primitives.serialization import (
 from ratchetkit.errors import InvalidKey
 from ratchetkit.algorithms.kem.base import KemBackend
 from ratchetkit.keys.keypair import KeyPair, PublicKey
-
-if TYPE_CHECKING:
-    from ratchetkit.suite.algs import KeyExchangeAlg
+from ratchetkit.suite.algs import KeyExchangeAlg
 
 
 class RsaKem(KemBackend):
@@ -87,3 +83,18 @@ class RsaKem(KemBackend):
             )
         except Exception as exc:
             raise InvalidKey("RSA-OAEP decapsulation failed") from exc
+
+
+class Rsa2048(RsaKem):
+    algorithm = KeyExchangeAlg.RSA2048
+    key_size = 2048
+
+
+class Rsa3072(RsaKem):
+    algorithm = KeyExchangeAlg.RSA3072
+    key_size = 3072
+
+
+class Rsa4096(RsaKem):
+    algorithm = KeyExchangeAlg.RSA4096
+    key_size = 4096

@@ -1,6 +1,6 @@
 """Aes256 algorithm smoke test."""
 
-from ratchetkit.algorithms.cipher.aes256 import Aes256
+from ratchetkit.algorithms.cipher.base import Aes256
 
 
 def test_aes256_sizes():

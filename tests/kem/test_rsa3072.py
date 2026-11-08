@@ -1,7 +1,7 @@
 """RSA-3072 KEM smoke test."""
 
-from ratchetkit.algorithms.hash.sha256 import Sha256
-from ratchetkit.algorithms.kem.rsa3072 import Rsa3072
+from ratchetkit.algorithms.hash.base import Sha256
+from ratchetkit.algorithms.kem.rsa_base import Rsa3072
 from ratchetkit.algorithms.signing.rsa_pss import RsaPss3072
 
 

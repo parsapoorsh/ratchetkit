@@ -2,7 +2,7 @@
 
 import pytest
 
-from ratchetkit.algorithms.kem.mlkem768 import Mlkem768
+from ratchetkit.algorithms.kem.mlkem_base import Mlkem768
 from ratchetkit.errors import InvalidMessage
 from ratchetkit.ratchet import SparsePostQuantumRatchet
 from ratchetkit.suite import (

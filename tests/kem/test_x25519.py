@@ -1,6 +1,6 @@
 """X25519 KEM smoke test."""
 
-from ratchetkit.algorithms.hash.sha256 import Sha256
+from ratchetkit.algorithms.hash.base import Sha256
 from ratchetkit.algorithms.kem.x25519 import X25519
 from ratchetkit.algorithms.signing.ed25519 import Ed25519
 

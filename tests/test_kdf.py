@@ -1,6 +1,6 @@
 """KDF and chain-key derivation tests."""
 
-from ratchetkit.algorithms.hash.sha256 import Sha256
+from ratchetkit.algorithms.hash.base import Sha256
 from ratchetkit.kdf import Kdf
 from ratchetkit.keys.chain import ChainKey
 from ratchetkit.suite import (

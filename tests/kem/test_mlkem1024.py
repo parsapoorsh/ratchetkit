@@ -1,6 +1,6 @@
 """ML-KEM-1024 smoke test."""
 
-from ratchetkit.algorithms.kem.mlkem1024 import Mlkem1024
+from ratchetkit.algorithms.kem.mlkem_base import Mlkem1024
 
 
 def test_mlkem1024_encapsulate_roundtrip():
