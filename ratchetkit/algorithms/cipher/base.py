@@ -11,8 +11,8 @@ from cryptography.hazmat.primitives.ciphers import Cipher, modes
 class CipherAlgorithm(ABC):
     """Symmetric cipher used when deriving and applying MessageKeys.
 
-    Block ciphers always run in CTR (single-use message keys). Stream
-    ciphers (ChaCha20) take the IV as the nonce directly.
+    Block ciphers run in CTR (single-use message keys). Stream ciphers
+    override encrypt / decrypt.
     """
 
     name: str
@@ -20,15 +20,10 @@ class CipherAlgorithm(ABC):
     block_size: int
     nonce_size: int
     algorithm: Any  # hazmat algorithms.* class
-    is_stream: bool = False
 
     @classmethod
     def iv_size(cls) -> int:
-        if cls.is_stream:
-            # cryptography ChaCha20 uses 16-byte nonce (4-byte counter + 12-byte nonce)
-            return cls.nonce_size
-        # Only CTR is used for block ciphers; IV length is the block size.
-        return cls.block_size
+        return cls.nonce_size
 
     @classmethod
     def encrypt(cls, key: bytes, iv: bytes, plaintext: bytes) -> bytes:
@@ -40,10 +35,7 @@ class CipherAlgorithm(ABC):
             raise ValueError(
                 f"{cls.name} iv must be {cls.iv_size()} bytes, got {len(iv)}"
             )
-        if cls.is_stream:
-            cipher = Cipher(cls.algorithm(key, iv), mode=None)
-        else:
-            cipher = Cipher(cls.algorithm(key), modes.CTR(iv))
+        cipher = Cipher(cls.algorithm(key), modes.CTR(iv))
         encryptor = cipher.encryptor()
         return encryptor.update(plaintext) + encryptor.finalize()
 
@@ -57,9 +49,6 @@ class CipherAlgorithm(ABC):
             raise ValueError(
                 f"{cls.name} iv must be {cls.iv_size()} bytes, got {len(iv)}"
             )
-        if cls.is_stream:
-            cipher = Cipher(cls.algorithm(key, iv), mode=None)
-        else:
-            cipher = Cipher(cls.algorithm(key), modes.CTR(iv))
+        cipher = Cipher(cls.algorithm(key), modes.CTR(iv))
         decryptor = cipher.decryptor()
         return decryptor.update(ciphertext) + decryptor.finalize()

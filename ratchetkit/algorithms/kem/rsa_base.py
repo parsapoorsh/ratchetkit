@@ -35,19 +35,31 @@ class RsaKem(KemBackend):
             public_exponent=65537,
             key_size=self.key_size,
         )
-        private = self.encode_private(raw)
+        private = raw.private_bytes(
+            Encoding.DER,
+            PrivateFormat.PKCS8,
+            NoEncryption(),
+        )
         return KeyPair(
             private=private,
             public=PublicKey(self.derive_public(private), self.algorithm),
         )
 
     def derive_public(self, private: bytes) -> bytes:
-        return self.encode_public(self.decode_private(private).public_key())
+        key = serialization.load_der_private_key(private, password=None)
+        if not isinstance(key, rsa.RSAPrivateKey):
+            raise InvalidKey("expected RSA private key")
+        return key.public_key().public_bytes(
+            Encoding.DER,
+            PublicFormat.SubjectPublicKeyInfo,
+        )
 
     def encapsulate(self, their_public: PublicKey) -> tuple[bytes, bytes]:
-        public = self.decode_public(their_public.data)
+        loaded = serialization.load_der_public_key(their_public.data)
+        if not isinstance(loaded, rsa.RSAPublicKey):
+            raise InvalidKey("expected RSA public key")
         secret = os.urandom(self.secret_size)
-        ciphertext = public.encrypt(
+        ciphertext = loaded.encrypt(
             secret,
             padding.OAEP(
                 mgf=padding.MGF1(algorithm=hashes.SHA256()),
@@ -58,9 +70,14 @@ class RsaKem(KemBackend):
         return secret, ciphertext
 
     def decapsulate(self, our_private: KeyPair, ciphertext: bytes) -> bytes:
-        private = self.decode_private(our_private.private)
+        loaded = serialization.load_der_private_key(
+            our_private.private,
+            password=None,
+        )
+        if not isinstance(loaded, rsa.RSAPrivateKey):
+            raise InvalidKey("expected RSA private key")
         try:
-            return private.decrypt(
+            return loaded.decrypt(
                 ciphertext,
                 padding.OAEP(
                     mgf=padding.MGF1(algorithm=hashes.SHA256()),
@@ -70,29 +87,3 @@ class RsaKem(KemBackend):
             )
         except Exception as exc:
             raise InvalidKey("RSA-OAEP decapsulation failed") from exc
-
-    @staticmethod
-    def encode_public(key: rsa.RSAPublicKey) -> bytes:
-        return key.public_bytes(Encoding.DER, PublicFormat.SubjectPublicKeyInfo)
-
-    @staticmethod
-    def encode_private(key: rsa.RSAPrivateKey) -> bytes:
-        return key.private_bytes(
-            Encoding.DER,
-            PrivateFormat.PKCS8,
-            NoEncryption(),
-        )
-
-    @staticmethod
-    def decode_public(data: bytes) -> rsa.RSAPublicKey:
-        key = serialization.load_der_public_key(data)
-        if not isinstance(key, rsa.RSAPublicKey):
-            raise InvalidKey("expected RSA public key")
-        return key
-
-    @staticmethod
-    def decode_private(data: bytes) -> rsa.RSAPrivateKey:
-        key = serialization.load_der_private_key(data, password=None)
-        if not isinstance(key, rsa.RSAPrivateKey):
-            raise InvalidKey("expected RSA private key")
-        return key

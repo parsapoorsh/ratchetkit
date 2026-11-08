@@ -24,14 +24,19 @@ class EcKem(KemBackend):
 
     def generate_keypair(self) -> KeyPair:
         raw = ec.generate_private_key(self.curve)
-        private = self.encode_private(raw)
+        byte_length = (self.curve.key_size + 7) // 8
+        private = raw.private_numbers().private_value.to_bytes(byte_length, "big")
         return KeyPair(
             private=private,
             public=PublicKey(self.derive_public(private), self.algorithm),
         )
 
     def derive_public(self, private: bytes) -> bytes:
-        return self.encode_public(self.decode_private(private).public_key())
+        key = ec.derive_private_key(int.from_bytes(private, "big"), self.curve)
+        return key.public_key().public_bytes(
+            Encoding.X962,
+            PublicFormat.UncompressedPoint,
+        )
 
     def encapsulate(self, their_public: PublicKey) -> tuple[bytes, bytes]:
         ephemeral = self.generate_keypair()
@@ -46,8 +51,14 @@ class EcKem(KemBackend):
 
     def dh(self, our_private: KeyPair, their_public: PublicKey) -> bytes:
         try:
-            private = self.decode_private(our_private.private)
-            public = self.decode_public(their_public.data)
+            private = ec.derive_private_key(
+                int.from_bytes(our_private.private, "big"),
+                self.curve,
+            )
+            public = ec.EllipticCurvePublicKey.from_encoded_point(
+                self.curve,
+                their_public.data,
+            )
             shared = private.exchange(ec.ECDH(), public)
         except Exception as exc:
             raise InvalidKey(
@@ -58,19 +69,3 @@ class EcKem(KemBackend):
                 f"{self.algorithm.name} ECDH produced an all-zero shared secret"
             )
         return shared
-
-    @staticmethod
-    def encode_public(key: ec.EllipticCurvePublicKey) -> bytes:
-        return key.public_bytes(Encoding.X962, PublicFormat.UncompressedPoint)
-
-    def encode_private(self, key: ec.EllipticCurvePrivateKey) -> bytes:
-        numbers = key.private_numbers()
-        byte_length = (self.curve.key_size + 7) // 8
-        return numbers.private_value.to_bytes(byte_length, "big")
-
-    def decode_private(self, data: bytes) -> ec.EllipticCurvePrivateKey:
-        value = int.from_bytes(data, "big")
-        return ec.derive_private_key(value, self.curve)
-
-    def decode_public(self, data: bytes) -> ec.EllipticCurvePublicKey:
-        return ec.EllipticCurvePublicKey.from_encoded_point(self.curve, data)

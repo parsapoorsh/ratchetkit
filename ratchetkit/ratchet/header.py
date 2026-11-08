@@ -11,10 +11,6 @@ class RatchetHeader:
     """Encode / decode the opaque ``ratchet_public`` field on messages."""
 
     @staticmethod
-    def encode_dh(public: bytes) -> bytes:
-        return public
-
-    @staticmethod
     def encode_kem(public: bytes, ciphertext: bytes) -> bytes:
         if len(public) > 0xFFFF or len(ciphertext) > 0xFFFF:
             raise SerializationError("KEM header field too large")

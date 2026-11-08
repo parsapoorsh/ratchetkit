@@ -25,14 +25,15 @@ class EcdsaBackend(SigningBackend):
 
     def generate_keypair(self) -> SigningKeyPair:
         raw = ec.generate_private_key(self.curve)
-        private = self.encode_private(raw)
+        byte_length = (self.curve.key_size + 7) // 8
+        private = raw.private_numbers().private_value.to_bytes(byte_length, "big")
         return SigningKeyPair(
             private=private,
             public=SigningPublicKey(self.derive_public(private), self.algorithm),
         )
 
     def derive_public(self, private: bytes) -> bytes:
-        key = self.decode_private(private)
+        key = ec.derive_private_key(int.from_bytes(private, "big"), self.curve)
         return key.public_key().public_bytes(
             Encoding.X962,
             PublicFormat.UncompressedPoint,
@@ -44,7 +45,10 @@ class EcdsaBackend(SigningBackend):
         message: bytes,
         digest: type[HashAlgorithm],
     ) -> bytes:
-        key = self.decode_private(private.private)
+        key = ec.derive_private_key(
+            int.from_bytes(private.private, "big"),
+            self.curve,
+        )
         return key.sign(message, ec.ECDSA(digest.hazmat()))
 
     def verify(
@@ -59,15 +63,6 @@ class EcdsaBackend(SigningBackend):
             key.verify(signature, message, ec.ECDSA(digest.hazmat()))
         except Exception as exc:
             raise InvalidSignature("ECDSA verification failed") from exc
-
-    def encode_private(self, key: ec.EllipticCurvePrivateKey) -> bytes:
-        numbers = key.private_numbers()
-        byte_length = (self.curve.key_size + 7) // 8
-        return numbers.private_value.to_bytes(byte_length, "big")
-
-    def decode_private(self, data: bytes) -> ec.EllipticCurvePrivateKey:
-        value = int.from_bytes(data, "big")
-        return ec.derive_private_key(value, self.curve)
 
 
 class EcdsaSecp256r1(EcdsaBackend):

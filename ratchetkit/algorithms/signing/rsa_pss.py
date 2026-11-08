@@ -34,14 +34,20 @@ class RsaPssBackend(SigningBackend):
             public_exponent=65537,
             key_size=self.key_size,
         )
-        private = self.encode_private(raw)
+        private = raw.private_bytes(
+            Encoding.DER,
+            PrivateFormat.PKCS8,
+            NoEncryption(),
+        )
         return SigningKeyPair(
             private=private,
             public=SigningPublicKey(self.derive_public(private), self.algorithm),
         )
 
     def derive_public(self, private: bytes) -> bytes:
-        key = self.decode_private(private)
+        key = serialization.load_der_private_key(private, password=None)
+        if not isinstance(key, rsa.RSAPrivateKey):
+            raise InvalidKey("expected RSA private key")
         return key.public_key().public_bytes(
             Encoding.DER,
             PublicFormat.SubjectPublicKeyInfo,
@@ -53,7 +59,9 @@ class RsaPssBackend(SigningBackend):
         message: bytes,
         digest: type[HashAlgorithm],
     ) -> bytes:
-        key = self.decode_private(private.private)
+        key = serialization.load_der_private_key(private.private, password=None)
+        if not isinstance(key, rsa.RSAPrivateKey):
+            raise InvalidKey("expected RSA private key")
         algorithm = digest.hazmat()
         hasher = hashes.Hash(algorithm)
         hasher.update(message)
@@ -73,7 +81,9 @@ class RsaPssBackend(SigningBackend):
         signature: bytes,
         digest: type[HashAlgorithm],
     ) -> None:
-        key = self.decode_public(public.data)
+        key = serialization.load_der_public_key(public.data)
+        if not isinstance(key, rsa.RSAPublicKey):
+            raise InvalidKey("expected RSA public key")
         algorithm = digest.hazmat()
         hasher = hashes.Hash(algorithm)
         hasher.update(message)
@@ -89,28 +99,6 @@ class RsaPssBackend(SigningBackend):
             )
         except Exception as exc:
             raise InvalidSignature("RSA-PSS verification failed") from exc
-
-    @staticmethod
-    def encode_private(key: rsa.RSAPrivateKey) -> bytes:
-        return key.private_bytes(
-            Encoding.DER,
-            PrivateFormat.PKCS8,
-            NoEncryption(),
-        )
-
-    @staticmethod
-    def decode_private(data: bytes) -> rsa.RSAPrivateKey:
-        key = serialization.load_der_private_key(data, password=None)
-        if not isinstance(key, rsa.RSAPrivateKey):
-            raise InvalidKey("expected RSA private key")
-        return key
-
-    @staticmethod
-    def decode_public(data: bytes) -> rsa.RSAPublicKey:
-        key = serialization.load_der_public_key(data)
-        if not isinstance(key, rsa.RSAPublicKey):
-            raise InvalidKey("expected RSA public key")
-        return key
 
 
 class RsaPss2048(RsaPssBackend):

@@ -191,7 +191,10 @@ class TripleRatchet(Ratchet[TripleRatchetMessage], Constructor):
     ) -> bytes:
         ec_message = message.ec_message
         try:
-            chain_id = RatchetHeader.chain_id(ec_message.ratchet_public, self.ec.is_kem)
+            chain_id = RatchetHeader.chain_id(
+                ec_message.ratchet_public,
+                is_kem=not self.ec.suite.kem.supports_dh,
+            )
         except Exception as exc:
             raise InvalidMessage("malformed ratchet header") from exc
 

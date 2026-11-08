@@ -63,10 +63,6 @@ class DoubleRatchet(Ratchet[DoubleRatchetMessage], Constructor):
         self.sender_header = sender_header
         self.their_kem_public = their_kem_public
 
-    @property
-    def is_kem(self) -> bool:
-        return not self.suite.kem.supports_dh
-
     @classmethod
     def initiate(
         cls,
@@ -78,14 +74,13 @@ class DoubleRatchet(Ratchet[DoubleRatchetMessage], Constructor):
         """Alice: seed sending chain against Bob's signed prekey public."""
         root = RootKey(shared_secret, suite)
         if suite.kem.supports_dh:
-            root, chain = root.create_chain(
-                their_ratchet_public,
-                our_ratchet_key,
-            )
-            sender_header = RatchetHeader.encode_dh(our_ratchet_key.public.data)
+            shared = suite.kem.dh(our_ratchet_key, their_ratchet_public)
+            root, chain = root.create_chain_from_secret(shared)
+            sender_header = our_ratchet_key.public.data
             their_kem = None
         else:
-            root, chain, ct = root.create_chain_send(their_ratchet_public)
+            secret, ct = suite.kem.encapsulate(their_ratchet_public)
+            root, chain = root.create_chain_from_secret(secret)
             sender_header = RatchetHeader.encode_kem(our_ratchet_key.public.data, ct)
             their_kem = their_ratchet_public
         return cls(
@@ -109,10 +104,8 @@ class DoubleRatchet(Ratchet[DoubleRatchetMessage], Constructor):
         """Bob: seed receiving chain under Alice's first ratchet material."""
         root = RootKey(shared_secret, suite)
         if suite.kem.supports_dh:
-            root, recv_chain = root.create_chain(
-                their_ratchet_public,
-                our_ratchet_key,
-            )
+            shared = suite.kem.dh(our_ratchet_key, their_ratchet_public)
+            root, recv_chain = root.create_chain_from_secret(shared)
             remote_id = their_ratchet_public
             their_kem = None
         else:
@@ -124,7 +117,8 @@ class DoubleRatchet(Ratchet[DoubleRatchetMessage], Constructor):
                 raise InvalidMessage(
                     "KEM header public does not match initial ratchet public"
                 )
-            root, recv_chain = root.create_chain_recv(our_ratchet_key, ct)
+            secret = suite.kem.decapsulate(our_ratchet_key, ct)
+            root, recv_chain = root.create_chain_from_secret(secret)
             remote_id = PublicKey(
                 RatchetHeader.chain_id(first_header, is_kem=True),
                 suite.kem.algorithm,
@@ -191,7 +185,10 @@ class DoubleRatchet(Ratchet[DoubleRatchetMessage], Constructor):
     ) -> bytes:
         """Mutating decrypt for a trial clone only. Prefer :meth:`decrypt`."""
         try:
-            chain_id = RatchetHeader.chain_id(message.ratchet_public, self.is_kem)
+            chain_id = RatchetHeader.chain_id(
+                message.ratchet_public,
+                is_kem=not self.suite.kem.supports_dh,
+            )
         except Exception as exc:
             raise InvalidMessage("malformed ratchet header") from exc
 
@@ -354,9 +351,9 @@ class DoubleRatchet(Ratchet[DoubleRatchetMessage], Constructor):
             # libsignal: previous_counter = sender_index.saturating_sub(1)
             index = self.sender_chain.chain_key.index
             self.previous_counter = index - 1 if index > 0 else 0
-        if self.is_kem:
-            return self.kem_ratchet(header)
-        return self.dh_ratchet(PublicKey(header, self.suite.kem.algorithm))
+        if self.suite.kem.supports_dh:
+            return self.dh_ratchet(PublicKey(header, self.suite.kem.algorithm))
+        return self.kem_ratchet(header)
 
     def skip_previous_chain(self, previous_counter: int) -> None:
         """Cache message keys on the newest receiver chain through PN inclusive."""
@@ -379,20 +376,16 @@ class DoubleRatchet(Ratchet[DoubleRatchetMessage], Constructor):
             our_key = self.suite.kem.generate_keypair()
             self.our_ratchet_key = our_key
 
-        self.root_key, recv_ck = self.root_key.create_chain(
-            their_public,
-            our_key,
-        )
+        shared = self.suite.kem.dh(our_key, their_public)
+        self.root_key, recv_ck = self.root_key.create_chain_from_secret(shared)
         receiver = ReceiverChain(their_public, recv_ck)
         self.push_receiver(receiver)
 
         new_local = self.suite.kem.generate_keypair()
-        self.root_key, send_ck = self.root_key.create_chain(
-            their_public,
-            new_local,
-        )
+        shared = self.suite.kem.dh(new_local, their_public)
+        self.root_key, send_ck = self.root_key.create_chain_from_secret(shared)
         self.sender_chain = SenderChain(new_local, send_ck)
-        self.sender_header = RatchetHeader.encode_dh(new_local.public.data)
+        self.sender_header = new_local.public.data
         self.our_ratchet_key = new_local
         return receiver
 
@@ -402,7 +395,8 @@ class DoubleRatchet(Ratchet[DoubleRatchetMessage], Constructor):
         if our_key is None:
             raise InvalidMessage("KEM ratchet missing local private key")
 
-        self.root_key, recv_ck = self.root_key.create_chain_recv(our_key, ct)
+        secret = self.suite.kem.decapsulate(our_key, ct)
+        self.root_key, recv_ck = self.root_key.create_chain_from_secret(secret)
         chain_id = PublicKey(
             RatchetHeader.chain_id(header, is_kem=True),
             self.suite.kem.algorithm,
@@ -412,9 +406,8 @@ class DoubleRatchet(Ratchet[DoubleRatchetMessage], Constructor):
         self.their_kem_public = PublicKey(remote_public, self.suite.kem.algorithm)
 
         new_local = self.suite.kem.generate_keypair()
-        self.root_key, send_ck, send_ct = self.root_key.create_chain_send(
-            self.their_kem_public
-        )
+        secret, send_ct = self.suite.kem.encapsulate(self.their_kem_public)
+        self.root_key, send_ck = self.root_key.create_chain_from_secret(secret)
         self.sender_chain = SenderChain(new_local, send_ck)
         self.sender_header = RatchetHeader.encode_kem(new_local.public.data, send_ct)
         self.our_ratchet_key = new_local
@@ -428,26 +421,23 @@ class DoubleRatchet(Ratchet[DoubleRatchetMessage], Constructor):
     def ensure_sender_chain(self) -> None:
         if self.sender_chain is not None:
             return
-        if not self.is_kem:
+        if self.suite.kem.supports_dh:
             if not self.receiver_chains:
                 raise InvalidMessage("cannot encrypt before ratchet is initialized")
             their_public = self.receiver_chains[0].ratchet_public
             new_local = self.suite.kem.generate_keypair()
-            self.root_key, send_ck = self.root_key.create_chain(
-                their_public,
-                new_local,
-            )
+            shared = self.suite.kem.dh(new_local, their_public)
+            self.root_key, send_ck = self.root_key.create_chain_from_secret(shared)
             self.sender_chain = SenderChain(new_local, send_ck)
-            self.sender_header = RatchetHeader.encode_dh(new_local.public.data)
+            self.sender_header = new_local.public.data
             self.our_ratchet_key = new_local
             return
 
         if self.their_kem_public is None:
             raise InvalidMessage("KEM send missing remote public")
         new_local = self.suite.kem.generate_keypair()
-        self.root_key, send_ck, ct = self.root_key.create_chain_send(
-            self.their_kem_public
-        )
+        secret, ct = self.suite.kem.encapsulate(self.their_kem_public)
+        self.root_key, send_ck = self.root_key.create_chain_from_secret(secret)
         self.sender_chain = SenderChain(new_local, send_ck)
         self.sender_header = RatchetHeader.encode_kem(new_local.public.data, ct)
         self.our_ratchet_key = new_local
