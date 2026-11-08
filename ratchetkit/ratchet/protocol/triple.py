@@ -23,7 +23,6 @@ from ratchetkit.suite import KdfLabel
 from ratchetkit.suite.registry import hash_backend
 
 if TYPE_CHECKING:
-    from ratchetkit.algorithms.kem.base import KemBackend
     from ratchetkit.suite.double import CryptoSuiteDoubleRatchet as CryptoSuite
     from ratchetkit.suite.triple import CryptoSuiteTripleRatchet
 
@@ -50,12 +49,10 @@ class TripleRatchet(Ratchet[TripleRatchetMessage], Constructor):
     @classmethod
     def initiate(
         cls,
-        suite: CryptoSuite,
+        suite: CryptoSuiteTripleRatchet,
         shared_secret: bytes,
         our_ratchet_key: KeyPair,
         their_ratchet_public: PublicKey,
-        pq_kem: KemBackend,
-        n_chunks: int = 8,
         limits: RatchetLimits | None = None,
     ) -> TripleRatchet:
         sk_ec, sk_scka = cls.split_sk(suite, shared_secret)
@@ -71,8 +68,8 @@ class TripleRatchet(Ratchet[TripleRatchetMessage], Constructor):
         spqr = SparsePostQuantumRatchet.initiate(
             suite,
             sk_scka,
-            pq_kem,
-            n_chunks=n_chunks,
+            suite.pq_kem,
+            n_chunks=suite.scka_chunks,
             limits=limits,
         )
         return cls(suite=suite, ec=ec, spqr=spqr)
@@ -80,14 +77,12 @@ class TripleRatchet(Ratchet[TripleRatchetMessage], Constructor):
     @classmethod
     def accept(
         cls,
-        suite: CryptoSuite,
+        suite: CryptoSuiteTripleRatchet,
         shared_secret: bytes,
         their_ratchet_public: PublicKey,
         our_ratchet_key: KeyPair,
-        pq_kem: KemBackend,
-        n_chunks: int = 8,
-        limits: RatchetLimits | None = None,
         first_header: bytes | None = None,
+        limits: RatchetLimits | None = None,
     ) -> TripleRatchet:
         sk_ec, sk_scka = cls.split_sk(suite, shared_secret)
         ec = DoubleRatchet.accept(
@@ -103,8 +98,8 @@ class TripleRatchet(Ratchet[TripleRatchetMessage], Constructor):
         spqr = SparsePostQuantumRatchet.accept(
             suite,
             sk_scka,
-            pq_kem,
-            n_chunks=n_chunks,
+            suite.pq_kem,
+            n_chunks=suite.scka_chunks,
             limits=limits,
         )
         return cls(suite=suite, ec=ec, spqr=spqr)

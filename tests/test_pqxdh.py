@@ -1,4 +1,4 @@
-"""PQXDH handshake and suite.create_bundle integration tests."""
+"""PQXDH handshake and bundle integration tests."""
 
 import pytest
 
@@ -42,7 +42,7 @@ def test_suite_create_bundle_double():
     bob = IdentityKeyPair.generate(suite)
     spk = SignedPreKey.generate(1, bob, suite)
     opk = OneTimePreKey.generate(1, suite)
-    bundle = suite.create_bundle(bob, spk, opk)
+    bundle = suite.handshake().create_bundle(bob, spk, opk)
     assert bundle.pq_prekey is None
     assert isinstance(suite.handshake(), ExtendedTripleDiffieHellman)
 
@@ -53,9 +53,9 @@ def test_suite_create_bundle_triple_requires_pq_prekey():
     spk = SignedPreKey.generate(1, bob, suite)
     opk = OneTimePreKey.generate(1, suite)
     with pytest.raises(TypeError):
-        suite.create_bundle(bob, spk)  # type: ignore[call-arg]
+        suite.handshake().create_bundle(bob, spk)  # type: ignore[call-arg]
     pq = suite.generate_pq_prekey(7, bob)
-    bundle = suite.create_bundle(bob, spk, pq, opk)
+    bundle = suite.handshake().create_bundle(bob, spk, pq, opk)
     assert bundle.pq_prekey_id == 7
     assert bundle.pq_prekey is not None
     assert isinstance(suite.handshake(), PostQuantumExtendedDiffieHellman)
@@ -152,7 +152,7 @@ def test_x3dh_rejects_pq_bundle():
     spk = SignedPreKey.generate(1, bob, suite)
     opk = OneTimePreKey.generate(1, suite)
     pq = suite.generate_pq_prekey(1, bob)
-    bundle = suite.create_bundle(bob, spk, pq, opk)
+    bundle = suite.handshake().create_bundle(bob, spk, pq, opk)
     alice = IdentityKeyPair.generate(suite)
     x3dh = ExtendedTripleDiffieHellman(suite)
     with pytest.raises(InvalidKey, match="PQ prekey"):
@@ -166,7 +166,7 @@ def test_session_triple_via_pqxdh():
     spk = SignedPreKey.generate(1, bob, suite)
     opk = OneTimePreKey.generate(1, suite)
     pq = suite.generate_pq_prekey(1, bob)
-    bundle = suite.create_bundle(bob, spk, pq, opk)
+    bundle = suite.handshake().create_bundle(bob, spk, pq, opk)
     a_sess, initial = suite.initiate(alice, bundle)
     assert initial.pq_ciphertext is not None
     first = a_sess.encrypt(b"pq-session")
@@ -188,7 +188,7 @@ def test_bundle_and_initial_roundtrip_with_pq_fields():
     spk = SignedPreKey.generate(1, bob, suite)
     opk = OneTimePreKey.generate(3, suite)
     pq = suite.generate_pq_prekey(9, bob)
-    bundle = suite.create_bundle(bob, spk, pq, opk)
+    bundle = suite.handshake().create_bundle(bob, spk, pq, opk)
     restored = type(bundle).from_bytes(bundle.to_bytes())
     assert restored.pq_prekey_id == 9
     assert restored.pq_prekey == bundle.pq_prekey

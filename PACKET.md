@@ -125,7 +125,7 @@ use `to_bytes()` / `from_bytes()`. Ratchet messages use
 ### PreKeyBundle (`0x524B0010`)
 
 Published identity material for X3DH or PQXDH initiation.
-`suite.create_bundle(...)` builds it; the initiator verifies signatures
+`suite.handshake().create_bundle(...)` builds it; the initiator verifies signatures
 before `suite.initiate`.
 
 ```

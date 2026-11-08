@@ -228,7 +228,7 @@ def test_spk_algorithm_relabel_on_bundle():
     bob = IdentityKeyPair.generate(suite)
     spk = SignedPreKey.generate(1, bob, suite)
     opk = OneTimePreKey.generate(1, suite)
-    bundle = suite.create_bundle(bob, spk, opk)
+    bundle = suite.handshake().create_bundle(bob, spk, opk)
     relabeled = PreKeyBundle(
         identity_signing=bundle.identity_signing,
         identity_agreement=bundle.identity_agreement,

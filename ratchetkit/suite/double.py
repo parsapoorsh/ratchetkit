@@ -9,10 +9,7 @@ from ratchetkit.algorithms.kem.base import KemBackend
 from ratchetkit.algorithms.signing.base import SigningBackend
 from ratchetkit.errors import SerializationError
 from ratchetkit.handshake.message import InitialMessageX3DH
-from ratchetkit.handshake.x3dh import (
-    ExtendedTripleDiffieHellman,
-    ExtendedTripleDiffieHellmanResult,
-)
+from ratchetkit.handshake.x3dh import ExtendedTripleDiffieHellman
 from ratchetkit.keys.keypair import PublicKey
 from ratchetkit.packing import (
     Constructor,
@@ -43,7 +40,6 @@ if TYPE_CHECKING:
     from ratchetkit.keys.prekey import (
         OneTimePreKey,
         PreKeyBundle,
-        SignedPqPreKey,
         SignedPreKey,
     )
     from ratchetkit.ratchet.message.base import RatchetMessage
@@ -106,80 +102,7 @@ class CryptoSuiteDoubleRatchet(Constructor):
         )
 
     def handshake(self) -> ExtendedTripleDiffieHellman:
-        """Classical X3DH handshake for this suite."""
-        from ratchetkit.handshake.x3dh import ExtendedTripleDiffieHellman
-
         return ExtendedTripleDiffieHellman(self)
-
-    def create_bundle(
-        self,
-        identity: IdentityKeyPair,
-        signed_prekey: SignedPreKey,
-        one_time_prekey: OneTimePreKey | None = None,
-    ) -> PreKeyBundle:
-        """Publish a classical X3DH prekey bundle."""
-        return self.handshake().create_bundle(
-            identity,
-            signed_prekey,
-            one_time_prekey,
-        )
-
-    def respond_handshake(
-        self,
-        our_identity: IdentityKeyPair,
-        our_signed_prekey: SignedPreKey,
-        initial: InitialMessageX3DH,
-        our_one_time_prekey: OneTimePreKey | None = None,
-        our_pq_prekey: SignedPqPreKey | None = None,
-    ) -> bytes:
-        """Finish the suite handshake; returns the shared secret."""
-        return self.handshake().respond(
-            our_identity,
-            our_signed_prekey,
-            initial,
-            our_one_time_prekey,
-        )
-
-    def open_initiate(
-        self,
-        result: ExtendedTripleDiffieHellmanResult,
-        their_bundle: PreKeyBundle,
-    ) -> DoubleRatchet:
-        """Alice: open a Double Ratchet from the handshake result."""
-        if result.ratchet_key is None:
-            raise ValueError("handshake result missing ratchet key")
-        return DoubleRatchet.initiate(
-            self,
-            result.shared_secret,
-            result.ratchet_key,
-            their_bundle.signed_prekey,
-        )
-
-    def open_accept(
-        self,
-        shared_secret: bytes,
-        initial: InitialMessageX3DH,
-        message: DoubleRatchetMessage,
-        our_signed_prekey: SignedPreKey,
-    ) -> DoubleRatchet:
-        """Bob: open a Double Ratchet after handshake respond."""
-        if initial.ratchet_public is None:
-            raise ValueError("initial message missing ratchet public")
-        their_ratchet = PublicKey(initial.ratchet_public, self.kem.algorithm)
-        first_header = None
-        if not self.kem.supports_dh:
-            first_header = message.ratchet_public
-        return DoubleRatchet.accept(
-            self,
-            shared_secret,
-            their_ratchet,
-            our_signed_prekey.key_pair,
-            first_header=first_header,
-        )
-
-    def load_ratchet(self, data: bytes) -> DoubleRatchet:
-        """Restore ratchet state saved by ``Ratchet.to_bytes``."""
-        return DoubleRatchet.from_bytes(data, self)
 
     def initiate(
         self,
@@ -190,7 +113,14 @@ class CryptoSuiteDoubleRatchet(Constructor):
         from ratchetkit.session import Session
 
         result = self.handshake().initiate(our_identity, their_bundle)
-        ratchet = self.open_initiate(result, their_bundle)
+        if result.ratchet_key is None:
+            raise ValueError("handshake result missing ratchet key")
+        ratchet = self.Ratchet.initiate(
+            self,
+            result.shared_secret,
+            result.ratchet_key,
+            their_bundle.signed_prekey,
+        )
         associated = (
             our_identity.signing.public.data + their_bundle.identity_signing.data
         )
@@ -209,14 +139,11 @@ class CryptoSuiteDoubleRatchet(Constructor):
         message: RatchetMessage,
         our_one_time_prekey: OneTimePreKey | None = None,
         associated_data: bytes = b"",
-        our_pq_prekey: SignedPqPreKey | None = None,
     ) -> tuple[Session, bytes]:
         """Bob: finish handshake, open a session, decrypt the first message.
 
         ``associated_data`` is extra AD for the first message only; it is
         appended to the handshake identity AD (same rule as Session.decrypt).
-
-        Triple / PQXDH sessions require ``our_pq_prekey`` matching the bundle.
         """
         from ratchetkit.session import Session
 
@@ -224,18 +151,24 @@ class CryptoSuiteDoubleRatchet(Constructor):
             raise TypeError(
                 f"{type(self).__name__} requires {self.Message.__name__}"
             )
-        shared = self.respond_handshake(
+        shared = self.handshake().respond(
             our_identity,
             our_signed_prekey,
             initial,
             our_one_time_prekey,
-            our_pq_prekey,
         )
-        ratchet = self.open_accept(
+        if initial.ratchet_public is None:
+            raise ValueError("initial message missing ratchet public")
+        their_ratchet = PublicKey(initial.ratchet_public, self.kem.algorithm)
+        first_header = None
+        if not self.kem.supports_dh:
+            first_header = message.ratchet_public
+        ratchet = self.Ratchet.accept(
+            self,
             shared,
-            initial,
-            message,
-            our_signed_prekey,
+            their_ratchet,
+            our_signed_prekey.key_pair,
+            first_header=first_header,
         )
         associated = (
             initial.identity_signing.data + our_identity.signing.public.data

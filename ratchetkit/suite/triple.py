@@ -9,8 +9,8 @@ from ratchetkit.algorithms.kem.base import KemBackend
 from ratchetkit.errors import SerializationError
 from ratchetkit.handshake.message import InitialMessagePQXDH, InitialMessageX3DH
 from ratchetkit.handshake.pqxdh import PostQuantumExtendedDiffieHellman
-from ratchetkit.handshake.x3dh import ExtendedTripleDiffieHellmanResult
 from ratchetkit.keys.keypair import PublicKey
+from ratchetkit.keys.prekey import SignedPqPreKey
 from ratchetkit.packing import (
     ConstructorId,
     encode_u32,
@@ -32,9 +32,10 @@ if TYPE_CHECKING:
     from ratchetkit.keys.prekey import (
         OneTimePreKey,
         PreKeyBundle,
-        SignedPqPreKey,
         SignedPreKey,
     )
+    from ratchetkit.ratchet.message.base import RatchetMessage
+    from ratchetkit.session import Session
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -66,9 +67,6 @@ class CryptoSuiteTripleRatchet(CryptoSuiteDoubleRatchet):
         )
 
     def handshake(self) -> PostQuantumExtendedDiffieHellman:
-        """PQXDH handshake for this suite (classical DH + PQ KEM)."""
-        from ratchetkit.handshake.pqxdh import PostQuantumExtendedDiffieHellman
-
         return PostQuantumExtendedDiffieHellman(self, self.pq_kem)
 
     def generate_pq_prekey(
@@ -77,90 +75,58 @@ class CryptoSuiteTripleRatchet(CryptoSuiteDoubleRatchet):
         identity: IdentityKeyPair,
     ) -> SignedPqPreKey:
         """Generate a signed PQ prekey with this suite's ``pq_kem``."""
-        from ratchetkit.keys.prekey import SignedPqPreKey
-
         return SignedPqPreKey.generate(key_id, identity, self, self.pq_kem)
 
-    def create_bundle(
-        self,
-        identity: IdentityKeyPair,
-        signed_prekey: SignedPreKey,
-        pq_prekey: SignedPqPreKey,
-        one_time_prekey: OneTimePreKey | None = None,
-    ) -> PreKeyBundle:
-        """Publish a PQXDH prekey bundle (``pq_prekey`` private stays local)."""
-        return self.handshake().create_bundle(
-            identity,
-            signed_prekey,
-            pq_prekey,
-            one_time_prekey,
-        )
-
-    def respond_handshake(
+    def accept(
         self,
         our_identity: IdentityKeyPair,
         our_signed_prekey: SignedPreKey,
         initial: InitialMessageX3DH,
+        message: RatchetMessage,
         our_one_time_prekey: OneTimePreKey | None = None,
+        associated_data: bytes = b"",
         our_pq_prekey: SignedPqPreKey | None = None,
-    ) -> bytes:
-        """Finish PQXDH; ``our_pq_prekey`` is required."""
+    ) -> tuple[Session, bytes]:
+        """Bob: PQXDH respond + Triple Ratchet. ``our_pq_prekey`` is required."""
+        from ratchetkit.session import Session
+
         if our_pq_prekey is None:
             raise ValueError(
                 "accept on a Triple suite requires our_pq_prekey"
+            )
+        if not isinstance(message, self.Message):
+            raise TypeError(
+                f"{type(self).__name__} requires {self.Message.__name__}"
             )
         if not isinstance(initial, InitialMessagePQXDH):
             raise ValueError(
                 "accept on a Triple suite requires InitialMessagePQXDH"
             )
-        return self.handshake().respond(
+        shared = self.handshake().respond(
             our_identity,
             our_signed_prekey,
             initial,
             our_pq_prekey,
             our_one_time_prekey,
         )
-
-    def open_initiate(
-        self,
-        result: ExtendedTripleDiffieHellmanResult,
-        their_bundle: PreKeyBundle,
-    ) -> TripleRatchet:
-        """Alice: open a Triple Ratchet from the handshake result."""
-        if result.ratchet_key is None:
-            raise ValueError("handshake result missing ratchet key")
-        return TripleRatchet.initiate(
-            self,
-            result.shared_secret,
-            result.ratchet_key,
-            their_bundle.signed_prekey,
-            self.pq_kem,
-            n_chunks=self.scka_chunks,
-        )
-
-    def open_accept(
-        self,
-        shared_secret: bytes,
-        initial: InitialMessageX3DH,
-        message: TripleRatchetMessage,
-        our_signed_prekey: SignedPreKey,
-    ) -> TripleRatchet:
-        """Bob: open a Triple Ratchet after handshake respond."""
         if initial.ratchet_public is None:
             raise ValueError("initial message missing ratchet public")
         their_ratchet = PublicKey(initial.ratchet_public, self.kem.algorithm)
-        return TripleRatchet.accept(
+        ratchet = self.Ratchet.accept(
             self,
-            shared_secret,
+            shared,
             their_ratchet,
             our_signed_prekey.key_pair,
-            self.pq_kem,
-            n_chunks=self.scka_chunks,
         )
-
-    def load_ratchet(self, data: bytes) -> TripleRatchet:
-        """Restore Triple Ratchet state saved by ``Ratchet.to_bytes``."""
-        return TripleRatchet.from_bytes(data, self)
+        associated = (
+            initial.identity_signing.data + our_identity.signing.public.data
+        )
+        session = Session(
+            suite=self,
+            ratchet=ratchet,
+            associated_data=associated,
+        )
+        return session, session.decrypt(message, associated_data)
 
     def to_bytes(self) -> bytes:
         return (

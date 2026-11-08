@@ -102,6 +102,6 @@ class Session(Constructor):
             )
         return cls(
             suite=suite,
-            ratchet=suite.load_ratchet(ratchet_blob),
+            ratchet=suite.Ratchet.from_bytes(ratchet_blob, suite),
             associated_data=associated_data,
         )

@@ -31,10 +31,10 @@ def main() -> int:
     opk = OneTimePreKey.generate(42, suite)
     if isinstance(suite, CryptoSuiteTripleRatchet):
         pq = suite.generate_pq_prekey(1, bob_id)
-        bundle = suite.create_bundle(bob_id, spk, pq, opk)
+        bundle = suite.handshake().create_bundle(bob_id, spk, pq, opk)
     else:
         pq = None
-        bundle = suite.create_bundle(bob_id, spk, opk)
+        bundle = suite.handshake().create_bundle(bob_id, spk, opk)
 
     print(
         f"[checkpoint] suite={type(suite).__name__}  "
