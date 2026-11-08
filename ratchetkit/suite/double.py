@@ -8,12 +8,20 @@ from typing import TYPE_CHECKING
 from ratchetkit.algorithms.kem.base import KemBackend
 from ratchetkit.algorithms.signing.base import SigningBackend
 from ratchetkit.errors import SerializationError
+from ratchetkit.handshake.message import InitialMessageX3DH
+from ratchetkit.handshake.x3dh import (
+    ExtendedTripleDiffieHellman,
+    ExtendedTripleDiffieHellmanResult,
+)
+from ratchetkit.keys.keypair import PublicKey
 from ratchetkit.packing import (
     Constructor,
     ConstructorId,
     encode_u32,
     read_u32,
 )
+from ratchetkit.ratchet.message.double import DoubleRatchetMessage
+from ratchetkit.ratchet.protocol.double import DoubleRatchet
 from ratchetkit.suite.algs import (
     DEFAULT_TAG_SIZE,
     MIN_CIPHER_KEY_BYTES,
@@ -35,9 +43,9 @@ if TYPE_CHECKING:
     from ratchetkit.keys.prekey import (
         OneTimePreKey,
         PreKeyBundle,
+        SignedPqPreKey,
         SignedPreKey,
     )
-from ratchetkit.handshake.x3dh import ExtendedTripleDiffieHellman
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -62,6 +70,10 @@ class CryptoSuiteDoubleRatchet(Constructor):
     tag_size: int = DEFAULT_TAG_SIZE
     kem: KemBackend = field(init=False, repr=False, compare=False)
     signer: SigningBackend = field(init=False, repr=False, compare=False)
+
+    InitialMessage = InitialMessageX3DH
+    Message = DoubleRatchetMessage
+    Ratchet = DoubleRatchet
 
     CONSTRUCTOR_ID = ConstructorId.SUITE_DOUBLE
 
@@ -109,6 +121,63 @@ class CryptoSuiteDoubleRatchet(Constructor):
             signed_prekey,
             one_time_prekey,
         )
+
+    def respond_handshake(
+        self,
+        our_identity: IdentityKeyPair,
+        our_signed_prekey: SignedPreKey,
+        initial: InitialMessageX3DH,
+        our_one_time_prekey: OneTimePreKey | None = None,
+        our_pq_prekey: SignedPqPreKey | None = None,
+    ) -> bytes:
+        """Finish the suite handshake; returns the shared secret."""
+        return self.handshake().respond(
+            our_identity,
+            our_signed_prekey,
+            initial,
+            our_one_time_prekey,
+        )
+
+    def open_initiate(
+        self,
+        result: ExtendedTripleDiffieHellmanResult,
+        their_bundle: PreKeyBundle,
+    ) -> DoubleRatchet:
+        """Alice: open a Double Ratchet from the handshake result."""
+        if result.ratchet_key is None:
+            raise ValueError("handshake result missing ratchet key")
+        return DoubleRatchet.initiate(
+            self,
+            result.shared_secret,
+            result.ratchet_key,
+            their_bundle.signed_prekey,
+        )
+
+    def open_accept(
+        self,
+        shared_secret: bytes,
+        initial: InitialMessageX3DH,
+        message: DoubleRatchetMessage,
+        our_signed_prekey: SignedPreKey,
+    ) -> DoubleRatchet:
+        """Bob: open a Double Ratchet after handshake respond."""
+        if initial.ratchet_public is None:
+            raise ValueError("initial message missing ratchet public")
+        their_ratchet = PublicKey(initial.ratchet_public, self.kem.algorithm)
+        first_header = None
+        if not self.kem.supports_dh:
+            first_header = message.ratchet_public
+        return DoubleRatchet.accept(
+            self,
+            shared_secret,
+            their_ratchet,
+            our_signed_prekey.key_pair,
+            first_header=first_header,
+        )
+
+    def load_ratchet(self, data: bytes) -> DoubleRatchet:
+        """Restore ratchet state saved by ``Ratchet.to_bytes``."""
+        return DoubleRatchet.from_bytes(data, self)
 
     def to_bytes(self) -> bytes:
         return (

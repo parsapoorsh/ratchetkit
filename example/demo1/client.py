@@ -12,20 +12,12 @@ from example.common import (
 from example.suite_config import ACTIVE_SUITE
 from ratchetkit.keys.identity import IdentityKeyPair
 from ratchetkit.keys.prekey import PreKeyBundle
-from ratchetkit.ratchet import (
-    DoubleRatchetMessage,
-    TripleRatchetMessage,
-)
 from ratchetkit.session import Session
-from ratchetkit.suite.triple import CryptoSuiteTripleRatchet
 
 
 def main() -> None:
     suite = ACTIVE_SUITE()
-    if isinstance(suite, CryptoSuiteTripleRatchet):
-        Message = TripleRatchetMessage
-    else:
-        Message = DoubleRatchetMessage
+    Message = suite.Message
     alice = IdentityKeyPair.generate(suite)
     print(
         f"[alice] identity {fingerprint(alice.signing.public.data)}  "

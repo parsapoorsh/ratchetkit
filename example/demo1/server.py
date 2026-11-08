@@ -13,21 +13,14 @@ from example.common import (
 from example.suite_config import ACTIVE_SUITE
 from ratchetkit.keys.identity import IdentityKeyPair
 from ratchetkit.keys.prekey import OneTimePreKey, SignedPreKey
-from ratchetkit.ratchet import (
-    DoubleRatchetMessage,
-    TripleRatchetMessage,
-)
 from ratchetkit.session import Session
 from ratchetkit.suite.triple import CryptoSuiteTripleRatchet
-from ratchetkit.handshake import InitialMessagePQXDH, InitialMessageX3DH
 
 
 def main() -> None:
     suite = ACTIVE_SUITE()
-    if isinstance(suite, CryptoSuiteTripleRatchet):
-        Message = TripleRatchetMessage
-    else:
-        Message = DoubleRatchetMessage
+    Message = suite.Message
+    InitialMessage = suite.InitialMessage
     bob = IdentityKeyPair.generate(suite)
     spk = SignedPreKey.generate(1, bob)
     opk = OneTimePreKey.generate(42, suite)
@@ -50,14 +43,9 @@ def main() -> None:
         print("[bob]   sent PreKeyBundle")
 
         # --- 2. handshake respond + first decrypt ---
-        if isinstance(suite, CryptoSuiteTripleRatchet):
-            initial = InitialMessagePQXDH.from_bytes(
-                link.expect(InitialMessagePQXDH.CONSTRUCTOR_ID),
-            )
-        else:
-            initial = InitialMessageX3DH.from_bytes(
-                link.expect(InitialMessageX3DH.CONSTRUCTOR_ID),
-            )
+        initial = InitialMessage.from_bytes(
+            link.expect(InitialMessage.CONSTRUCTOR_ID),
+        )
         first = Message.from_bytes(link.expect(Message.CONSTRUCTOR_ID))
         session, plain = Session.accept(
             bob,

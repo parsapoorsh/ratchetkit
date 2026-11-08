@@ -1,10 +1,9 @@
-"""High-level Session: X3DH/PQXDH handshake wired into Double or Triple Ratchet."""
+"""High-level Session: suite handshake wired into the matching ratchet."""
 from __future__ import annotations
 
 
 from ratchetkit.errors import SerializationError
 from ratchetkit.keys.identity import IdentityKeyPair
-from ratchetkit.keys.keypair import PublicKey
 from ratchetkit.keys.prekey import (
     OneTimePreKey,
     PreKeyBundle,
@@ -17,12 +16,8 @@ from ratchetkit.packing import (
     encode_bytes,
     read_bytes,
 )
-from ratchetkit.ratchet.message import (
-    DoubleRatchetMessage,
-    RatchetMessage,
-    TripleRatchetMessage,
-)
-from ratchetkit.ratchet.protocol import DoubleRatchet, Ratchet, TripleRatchet
+from ratchetkit.ratchet.message import RatchetMessage
+from ratchetkit.ratchet.protocol import Ratchet
 from ratchetkit.suite.double import CryptoSuiteDoubleRatchet
 from ratchetkit.suite.double import CryptoSuiteDoubleRatchet as CryptoSuite
 from ratchetkit.suite.triple import CryptoSuiteTripleRatchet
@@ -54,28 +49,10 @@ class Session(Constructor):
         our_identity: IdentityKeyPair,
         their_bundle: PreKeyBundle,
     ) -> tuple[Session, InitialMessageX3DH]:
-        """Alice: suite handshake + open a Double or Triple Ratchet."""
+        """Alice: suite handshake + open the suite's ratchet."""
         suite = our_identity.require_suite()
         result = suite.handshake().initiate(our_identity, their_bundle)
-        assert result.ratchet_key is not None
-
-        if isinstance(suite, CryptoSuiteTripleRatchet):
-            ratchet: Ratchet = TripleRatchet.initiate(
-                suite,
-                result.shared_secret,
-                result.ratchet_key,
-                their_bundle.signed_prekey,
-                suite.pq_kem,
-                n_chunks=suite.scka_chunks,
-            )
-        else:
-            ratchet = DoubleRatchet.initiate(
-                suite,
-                result.shared_secret,
-                result.ratchet_key,
-                their_bundle.signed_prekey,
-            )
-
+        ratchet = suite.open_initiate(result, their_bundle)
         associated = (
             our_identity.signing.public.data + their_bundle.identity_signing.data
         )
@@ -105,62 +82,23 @@ class Session(Constructor):
         Triple / PQXDH sessions require ``our_pq_prekey`` matching the bundle.
         """
         suite = our_identity.require_suite()
-        if isinstance(suite, CryptoSuiteTripleRatchet):
-            from ratchetkit.handshake.message import InitialMessagePQXDH
-
-            if our_pq_prekey is None:
-                raise ValueError(
-                    "Session.accept on a Triple suite requires our_pq_prekey"
-                )
-            if not isinstance(initial, InitialMessagePQXDH):
-                raise ValueError(
-                    "Session.accept on a Triple suite requires InitialMessagePQXDH"
-                )
-            shared = suite.handshake().respond(
-                our_identity,
-                our_signed_prekey,
-                initial,
-                our_pq_prekey,
-                our_one_time_prekey,
+        if not isinstance(message, suite.Message):
+            raise TypeError(
+                f"{type(suite).__name__} requires {suite.Message.__name__}"
             )
-        else:
-            shared = suite.handshake().respond(
-                our_identity,
-                our_signed_prekey,
-                initial,
-                our_one_time_prekey,
-            )
-        if initial.ratchet_public is None:
-            raise ValueError("initial message missing ratchet public")
-
-        their_ratchet = PublicKey(initial.ratchet_public, suite.kem.algorithm)
-        first_header = None
-        if not suite.kem.supports_dh:
-            if isinstance(message, TripleRatchetMessage):
-                first_header = message.ec_message.ratchet_public
-            else:
-                assert isinstance(message, DoubleRatchetMessage)
-                first_header = message.ratchet_public
-
-        if isinstance(suite, CryptoSuiteTripleRatchet):
-            ratchet: Ratchet = TripleRatchet.accept(
-                suite,
-                shared,
-                their_ratchet,
-                our_signed_prekey.key_pair,
-                suite.pq_kem,
-                n_chunks=suite.scka_chunks,
-                first_header=first_header,
-            )
-        else:
-            ratchet = DoubleRatchet.accept(
-                suite,
-                shared,
-                their_ratchet,
-                our_signed_prekey.key_pair,
-                first_header=first_header,
-            )
-
+        shared = suite.respond_handshake(
+            our_identity,
+            our_signed_prekey,
+            initial,
+            our_one_time_prekey,
+            our_pq_prekey,
+        )
+        ratchet = suite.open_accept(
+            shared,
+            initial,
+            message,
+            our_signed_prekey,
+        )
         associated = (
             initial.identity_signing.data + our_identity.signing.public.data
         )
@@ -195,14 +133,14 @@ class Session(Constructor):
 
         ``associated_data`` must match the extra AD used at encrypt time.
         """
-        ad = self.associated_data + associated_data
-        if isinstance(self.ratchet, TripleRatchet):
-            if not isinstance(message, TripleRatchetMessage):
-                raise TypeError("triple session requires TripleRatchetMessage")
-            return self.ratchet.decrypt(message, ad)
-        if isinstance(message, TripleRatchetMessage):
-            raise TypeError("double session requires DoubleRatchetMessage")
-        return self.ratchet.decrypt(message, ad)
+        if not isinstance(message, self.suite.Message):
+            raise TypeError(
+                f"{type(self.suite).__name__} requires {self.suite.Message.__name__}"
+            )
+        return self.ratchet.decrypt(
+            message,
+            self.associated_data + associated_data,
+        )
 
     def to_bytes(self) -> bytes:
         """Serialize full session state (suite + ratchet + AD).
@@ -230,18 +168,14 @@ class Session(Constructor):
         suite_id, _ = Constructor.constructor_read(suite_blob, 0)
         if suite_id is ConstructorId.SUITE_TRIPLE:
             suite: CryptoSuite = CryptoSuiteTripleRatchet.from_bytes(suite_blob)
-            if not isinstance(suite, CryptoSuiteTripleRatchet):
-                raise SerializationError("triple suite decode failed")
-            ratchet: Ratchet = TripleRatchet.from_bytes(ratchet_blob, suite)
         elif suite_id is ConstructorId.SUITE_DOUBLE:
             suite = CryptoSuiteDoubleRatchet.from_bytes(suite_blob)
-            ratchet = DoubleRatchet.from_bytes(ratchet_blob, suite)
         else:
             raise SerializationError(
                 f"session suite constructor 0x{int(suite_id):08X} not supported"
             )
         return cls(
             suite=suite,
-            ratchet=ratchet,
+            ratchet=suite.load_ratchet(ratchet_blob),
             associated_data=associated_data,
         )

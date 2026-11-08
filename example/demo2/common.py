@@ -12,7 +12,6 @@ from ratchetkit.ratchet import (
     TripleRatchetMessage,
 )
 from ratchetkit.session import Session
-from ratchetkit.suite.triple import CryptoSuiteTripleRatchet
 
 HERE = Path(__file__).resolve().parent
 STATE_DIR = HERE / "state"
@@ -26,9 +25,7 @@ def fingerprint(data: bytes, n: int = 6) -> str:
 
 
 def message_type_for(suite) -> type[RatchetMessage]:
-    if isinstance(suite, CryptoSuiteTripleRatchet):
-        return TripleRatchetMessage
-    return DoubleRatchetMessage
+    return suite.Message
 
 
 def skipped_count(session: Session) -> int:
